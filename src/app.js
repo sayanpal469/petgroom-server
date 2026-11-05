@@ -8,7 +8,7 @@ import { ApiError, notFound } from "./lib/errors.js";
 import { logger } from "./lib/logger.js";
 import { streamPublic } from "./lib/media.js";
 import { requirePanel } from "./middleware/auth.js";
-import { rejectDangerousKeys, sameSiteOnly } from "./middleware/guard.js";
+import { corsForOurSites, rejectDangerousKeys, sameSiteOnly } from "./middleware/guard.js";
 import { generalLimit, handshakeLimit } from "./middleware/rateLimit.js";
 import { INNER_PREFIX, handshake, tunnel, tunneledOnly } from "./middleware/tunnel.js";
 import { authRouter, meRouter } from "./routes/customer.js";
@@ -39,6 +39,7 @@ export function createApp() {
   });
 
   app.use("/api", generalLimit);
+  app.use("/api/v1", corsForOurSites);
   app.post("/api/v1/handshake", handshakeLimit, sameSiteOnly, express.json({ limit: "1kb" }), handshake);
   app.post("/api/v1/t", sameSiteOnly, express.json({ limit: "16mb" }), tunnel);
 

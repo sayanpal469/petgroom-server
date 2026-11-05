@@ -64,6 +64,24 @@ test("requests from another site or without the client header are blocked", asyn
   assert.equal((await fetch(`${baseUrl}/api/v1/t`, { method: "POST", headers: noHeader, body })).status, 403);
 });
 
+test("CORS is approved only for our own sites, with credentials", async () => {
+  const preflight = (origin) =>
+    fetch(`${baseUrl}/api/v1/t`, { method: "OPTIONS", headers: { origin, "access-control-request-method": "POST", "access-control-request-headers": "content-type,x-ps-client,x-ps-kid" } });
+  const ours = await preflight(ORIGIN);
+  assert.equal(ours.status, 204);
+  assert.equal(ours.headers.get("access-control-allow-origin"), ORIGIN);
+  assert.equal(ours.headers.get("access-control-allow-credentials"), "true");
+  assert.match(ours.headers.get("access-control-allow-headers"), /x-ps-kid/);
+  const evil = await preflight("http://evil.test");
+  assert.equal(evil.headers.get("access-control-allow-origin"), null);
+  assert.equal(evil.headers.get("access-control-allow-credentials"), null);
+  // A real call from our site carries the headers too, so the browser lets the page read the reply.
+  const c = await new Client().connect();
+  const res = await fetch(`${baseUrl}/api/v1/t`, { method: "POST", headers: c.headers({ "x-ps-kid": c.kid }), body: JSON.stringify(c.seal({ m: "GET", p: "/public/bootstrap", t: Date.now() })) });
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("access-control-allow-origin"), ORIGIN);
+});
+
 test("path traversal inside the tunnel is rejected", async () => {
   const c = await new Client().connect();
   const res = await fetch(`${baseUrl}/api/v1/t`, { method: "POST", headers: c.headers({ "x-ps-kid": c.kid }), body: JSON.stringify(c.seal({ m: "GET", p: "/../healthz", t: Date.now() })) });

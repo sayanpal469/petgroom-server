@@ -2,9 +2,25 @@ import { env } from "../config/env.js";
 import { forbidden } from "../lib/errors.js";
 
 /**
+ * CORS, only for our own sites (ALLOWED_ORIGINS). A site served as static files calls the API on
+ * another subdomain of the same parent domain, so the browser asks first; anyone else gets no CORS
+ * headers, and the browser blocks them. Cookies stay SameSite=Lax, so they only travel between
+ * sites that share a parent domain.
+ */
+export function corsForOurSites(req, res, next) {
+  const origin = (req.get("origin") ?? "").replace(/\/$/, "");
+  if (!origin || !env.origins.includes(origin)) return req.method === "OPTIONS" ? res.status(204).end() : next();
+  res.vary("Origin");
+  res.set({ "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true" });
+  if (req.method !== "OPTIONS") return next();
+  res.set({ "Access-Control-Allow-Methods": "POST", "Access-Control-Allow-Headers": "content-type, x-ps-client, x-ps-kid", "Access-Control-Max-Age": "600" });
+  res.status(204).end();
+}
+
+/**
  * CSRF defence for the tunnel: the call must come from one of our sites. Browsers set
  * Origin and Sec-Fetch-Site themselves and page scripts cannot change them; the custom
- * header forces a CORS preflight, which this API never approves for another origin.
+ * header forces a CORS preflight, which this API approves only for our own sites.
  */
 export function sameSiteOnly(req, _res, next) {
   const origin = (req.get("origin") ?? "").replace(/\/$/, "");
