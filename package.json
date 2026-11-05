@@ -3,14 +3,14 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "main": "src/server.js",
+  "main": "server.cjs",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
     "dev": "node --watch src/server.js",
     "dev:memory": "node --env-file-if-exists=.env scripts/dev-memory.js",
-    "start": "node src/server.js",
+    "start": "node server.cjs",
     "seed": "node --env-file-if-exists=.env scripts/seed.js",
     "test": "node --test --test-concurrency=1 --test-force-exit test/*.test.js",
     "start:cluster": "node src/cluster.js"

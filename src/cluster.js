@@ -16,5 +16,8 @@ if (count > 1 && cluster.isPrimary) {
     }
   });
 } else {
-  await import("./server.js");
+  import("./server.js").catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
 }

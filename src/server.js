@@ -52,4 +52,5 @@ export async function start(port = env.PORT) {
 }
 
 // This file is the entry point, however the host loads it. Scripts that call start() themselves set PAWS_NO_AUTOSTART.
-if (!process.env.PAWS_NO_AUTOSTART) await start();
+// No top-level await anywhere: Hostinger loads the entry with require(), which refuses modules that use it.
+if (!process.env.PAWS_NO_AUTOSTART) void start();

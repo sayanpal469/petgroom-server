@@ -10,12 +10,19 @@ const canConnect = (port) =>
     s.once("error", () => resolve(false));
   });
 
-// Hostinger stops an app that hasn't called listen() within 3 seconds, so the port must open before
-// Express, Mongoose and the database load. Requests made meanwhile wait for the app.
-test("the server opens its port quickly, before the app and the database are ready", async () => {
+// Hostinger loads the entry file with require() (LiteSpeed lsnode) and stops an app that hasn't called
+// listen() within 3 seconds. So every entry must load through require() (no top-level await), and the
+// port must open before Express, Mongoose and the database load. Requests made meanwhile wait for the app.
+for (const entry of ["server.cjs", "src/server.js", "src/cluster.js"]) {
+  test(`${entry} loads through require() and opens its port quickly`, () => startsFast(["-e", `require(${JSON.stringify(`./${entry}`)})`]));
+}
+
+test("node src/server.js opens its port quickly", () => startsFast(["src/server.js"]));
+
+async function startsFast(args) {
   const port = 4600 + Math.floor(Math.random() * 300);
   const started = Date.now();
-  const child = spawn(process.execPath, ["src/server.js"], {
+  const child = spawn(process.execPath, args, {
     env: { ...process.env, NODE_ENV: "test", PORT: String(port), MONGODB_URI: "mongodb://127.0.0.1:1/never", TUNNEL_SECRET: "a".repeat(64), DATA_SECRET: "b".repeat(64), PAWS_NO_AUTOSTART: "" },
     stdio: "ignore",
   });
@@ -28,4 +35,4 @@ test("the server opens its port quickly, before the app and the database are rea
   } finally {
     child.kill();
   }
-});
+}
