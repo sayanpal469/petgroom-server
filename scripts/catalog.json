@@ -1,0 +1,802 @@
+{
+ "products": [
+  {
+   "id": "pr1",
+   "slug": "pedigree-adult-dog-food",
+   "name": "Pedigree Adult Dog Food",
+   "category": "food",
+   "petType": "dog",
+   "image": "/images/products/dog-food.svg",
+   "gallery": [
+    "/images/products/dog-food.svg",
+    "/images/pets/golden-toy.jpg"
+   ],
+   "variants": [
+    {
+     "id": "1kg",
+     "label": "1 kg",
+     "price": 499,
+     "mrp": 540
+    },
+    {
+     "id": "3kg",
+     "label": "3 kg",
+     "price": 1299,
+     "mrp": 1450
+    },
+    {
+     "id": "10kg",
+     "label": "10 kg",
+     "price": 3899,
+     "mrp": 4300
+    }
+   ],
+   "stock": 24,
+   "rating": 4.6,
+   "reviews": 128,
+   "description": "Complete and balanced nutrition for adult dogs, with real chicken, whole grains and essential vitamins for a shiny coat and strong bones.",
+   "usage": "Feed 2 times a day. Large dogs: 350–450 g per day. Always keep fresh water available.",
+   "highlights": [
+    "Real chicken & vegetables",
+    "Omega 6 for a glossy coat",
+    "Supports digestion"
+   ],
+   "tag": "Bestseller"
+  },
+  {
+   "id": "pr2",
+   "slug": "pet-shine-dog-shampoo",
+   "name": "Pet Shine Dog Shampoo",
+   "category": "shampoo",
+   "petType": "dog",
+   "image": "/images/products/dog-shampoo.svg",
+   "gallery": [
+    "/images/products/dog-shampoo.svg",
+    "/images/pets/samoyed.jpg"
+   ],
+   "variants": [
+    {
+     "id": "250ml",
+     "label": "250 ml",
+     "price": 350,
+     "mrp": 399
+    },
+    {
+     "id": "500ml",
+     "label": "500 ml",
+     "price": 599,
+     "mrp": 699
+    }
+   ],
+   "stock": 40,
+   "rating": 4.8,
+   "reviews": 86,
+   "description": "The same mild, pH-balanced shampoo our groomers use in the salon. Oatmeal and aloe calm itchy skin and leave a soft, fresh coat.",
+   "usage": "Wet coat, lather a small amount, massage for 2 minutes and rinse well. Use every 2–3 weeks.",
+   "highlights": [
+    "Used in our salon",
+    "Oatmeal & aloe vera",
+    "Tear-free formula"
+   ],
+   "tag": "Salon pick"
+  },
+  {
+   "id": "pr3",
+   "slug": "tennis-ball-toy",
+   "name": "Tennis Ball Toy",
+   "category": "toys",
+   "petType": "dog",
+   "image": "/images/products/tennis-balls.svg",
+   "gallery": [
+    "/images/products/tennis-balls.svg",
+    "/images/pets/dog-beach.jpg"
+   ],
+   "variants": [
+    {
+     "id": "3",
+     "label": "Pack of 3",
+     "price": 299,
+     "mrp": 349
+    }
+   ],
+   "stock": 60,
+   "rating": 4.5,
+   "reviews": 212,
+   "description": "Durable, high-bounce tennis balls sized for dogs. Non-toxic felt that is gentle on teeth.",
+   "usage": "Supervise play. Replace when the felt wears through.",
+   "highlights": [
+    "Non-toxic felt",
+    "Extra bounce",
+    "Floats in water"
+   ]
+  },
+  {
+   "id": "pr4",
+   "slug": "cat-food-chicken",
+   "name": "Cat Food – Chicken",
+   "category": "food",
+   "petType": "cat",
+   "image": "/images/products/cat-food.svg",
+   "gallery": [
+    "/images/products/cat-food.svg",
+    "/images/pets/cat-orange.jpg"
+   ],
+   "variants": [
+    {
+     "id": "1kg",
+     "label": "1 kg",
+     "price": 650,
+     "mrp": 720
+    },
+    {
+     "id": "3kg",
+     "label": "3 kg",
+     "price": 1799,
+     "mrp": 1990
+    }
+   ],
+   "stock": 18,
+   "rating": 4.7,
+   "reviews": 64,
+   "description": "Crunchy kibble with real chicken, taurine for heart health and cranberry for urinary care.",
+   "usage": "Adult cats: 50–70 g per day split into 2 meals.",
+   "highlights": [
+    "Real chicken",
+    "With taurine",
+    "Hairball control"
+   ]
+  },
+  {
+   "id": "pr5",
+   "slug": "chicken-jerky-treats",
+   "name": "Chicken Jerky Treats",
+   "category": "treats",
+   "petType": "dog",
+   "image": "/images/products/dog-treats.svg",
+   "gallery": [
+    "/images/products/dog-treats.svg",
+    "/images/pets/beagle.jpg"
+   ],
+   "variants": [
+    {
+     "id": "200g",
+     "label": "200 g",
+     "price": 249,
+     "mrp": 299
+    }
+   ],
+   "stock": 35,
+   "rating": 4.6,
+   "reviews": 97,
+   "description": "Slow-baked chicken strips with no added colours. A perfect training reward.",
+   "usage": "Up to 4 strips a day for large dogs. Break into small pieces for puppies.",
+   "highlights": [
+    "Single protein",
+    "No artificial colours",
+    "Great for training"
+   ],
+   "tag": "New"
+  },
+  {
+   "id": "pr6",
+   "slug": "catnip-mouse-toy",
+   "name": "Catnip Mouse Toy",
+   "category": "toys",
+   "petType": "cat",
+   "image": "/images/products/cat-mouse.svg",
+   "gallery": [
+    "/images/products/cat-mouse.svg",
+    "/images/pets/cat-kitten.jpg"
+   ],
+   "variants": [
+    {
+     "id": "2",
+     "label": "Pack of 2",
+     "price": 199,
+     "mrp": 249
+    }
+   ],
+   "stock": 4,
+   "rating": 4.4,
+   "reviews": 41,
+   "description": "Soft plush mice filled with organic catnip to spark play and pounce.",
+   "usage": "Refresh by squeezing gently to release more catnip scent.",
+   "highlights": [
+    "Organic catnip",
+    "Rattle inside",
+    "Machine washable cover"
+   ]
+  },
+  {
+   "id": "pr7",
+   "slug": "reflective-nylon-collar",
+   "name": "Reflective Nylon Collar",
+   "category": "accessories",
+   "petType": "dog",
+   "image": "/images/products/collar.svg",
+   "gallery": [
+    "/images/products/collar.svg",
+    "/images/pets/aussie.jpg"
+   ],
+   "variants": [
+    {
+     "id": "s",
+     "label": "Small",
+     "price": 349,
+     "mrp": 399
+    },
+    {
+     "id": "m",
+     "label": "Medium",
+     "price": 399,
+     "mrp": 449
+    },
+    {
+     "id": "l",
+     "label": "Large",
+     "price": 449,
+     "mrp": 499
+    }
+   ],
+   "stock": 22,
+   "rating": 4.5,
+   "reviews": 53,
+   "description": "Soft padded nylon collar with reflective stitching for safe evening walks.",
+   "usage": "Leave two fingers of space between the collar and the neck.",
+   "highlights": [
+    "Reflective stitching",
+    "Quick-release buckle",
+    "ID tag ring"
+   ]
+  },
+  {
+   "id": "pr8",
+   "slug": "soft-bristle-grooming-brush",
+   "name": "Soft Bristle Grooming Brush",
+   "category": "accessories",
+   "petType": "both",
+   "image": "/images/products/brush.svg",
+   "gallery": [
+    "/images/products/brush.svg",
+    "/images/pets/golden-grooming.jpg"
+   ],
+   "variants": [
+    {
+     "id": "1",
+     "label": "One size",
+     "price": 449,
+     "mrp": 549
+    }
+   ],
+   "stock": 15,
+   "rating": 4.7,
+   "reviews": 77,
+   "description": "Bamboo handle brush with soft bristles that remove loose hair and spread natural oils.",
+   "usage": "Brush in the direction of hair growth, 5 minutes a day.",
+   "highlights": [
+    "Groomer recommended",
+    "Bamboo handle",
+    "For all coat types"
+   ]
+  },
+  {
+   "id": "pr9",
+   "slug": "oatmeal-cat-shampoo",
+   "name": "Oatmeal Cat Shampoo",
+   "category": "shampoo",
+   "petType": "cat",
+   "image": "/images/products/cat-shampoo.svg",
+   "gallery": [
+    "/images/products/cat-shampoo.svg",
+    "/images/pets/cat-green.jpg"
+   ],
+   "variants": [
+    {
+     "id": "200ml",
+     "label": "200 ml",
+     "price": 320,
+     "mrp": 360
+    }
+   ],
+   "stock": 0,
+   "rating": 4.3,
+   "reviews": 22,
+   "description": "Extra-gentle, fragrance-light shampoo made for sensitive feline skin.",
+   "usage": "Use lukewarm water, avoid eyes and ears, rinse thoroughly.",
+   "highlights": [
+    "Fragrance-light",
+    "Soap free",
+    "Vet approved"
+   ]
+  },
+  {
+   "id": "pr10",
+   "slug": "tuna-cat-treats",
+   "name": "Tuna Cat Treats",
+   "category": "treats",
+   "petType": "cat",
+   "image": "/images/products/cat-treats.svg",
+   "gallery": [
+    "/images/products/cat-treats.svg",
+    "/images/pets/cat-stairs.jpg"
+   ],
+   "variants": [
+    {
+     "id": "60g",
+     "label": "60 g",
+     "price": 149,
+     "mrp": 179
+    }
+   ],
+   "stock": 50,
+   "rating": 4.8,
+   "reviews": 140,
+   "description": "Crunchy outside, creamy inside. Real tuna treats cats go crazy for.",
+   "usage": "Up to 10 treats a day.",
+   "highlights": [
+    "Real tuna",
+    "Dental crunch",
+    "Resealable pouch"
+   ],
+   "tag": "Bestseller"
+  },
+  {
+   "id": "pr11",
+   "slug": "rope-tug-toy",
+   "name": "Rope Tug Toy",
+   "category": "toys",
+   "petType": "dog",
+   "image": "/images/products/rope.svg",
+   "gallery": [
+    "/images/products/rope.svg",
+    "/images/pets/corgi-yorkie.jpg"
+   ],
+   "variants": [
+    {
+     "id": "m",
+     "label": "Medium",
+     "price": 249,
+     "mrp": 299
+    }
+   ],
+   "stock": 28,
+   "rating": 4.4,
+   "reviews": 66,
+   "description": "Braided cotton rope that cleans teeth while your dog tugs and chews.",
+   "usage": "Supervise play and replace when frayed.",
+   "highlights": [
+    "100% cotton",
+    "Helps clean teeth",
+    "Tug & fetch"
+   ]
+  },
+  {
+   "id": "pr12",
+   "slug": "cozy-pet-bed",
+   "name": "Cozy Pet Bed",
+   "category": "accessories",
+   "petType": "both",
+   "image": "/images/products/pet-bed.svg",
+   "gallery": [
+    "/images/products/pet-bed.svg",
+    "/images/pets/cavalier.jpg"
+   ],
+   "variants": [
+    {
+     "id": "m",
+     "label": "Medium",
+     "price": 1899,
+     "mrp": 2299
+    },
+    {
+     "id": "l",
+     "label": "Large",
+     "price": 2499,
+     "mrp": 2999
+    }
+   ],
+   "stock": 7,
+   "rating": 4.9,
+   "reviews": 38,
+   "description": "Plush round bed with raised walls that make pets feel safe and snug.",
+   "usage": "Removable cover, machine wash cold.",
+   "highlights": [
+    "Anti-slip base",
+    "Washable cover",
+    "Calming raised rim"
+   ]
+  }
+ ],
+ "services": [
+  {
+   "id": "s1",
+   "slug": "bath-blow-dry",
+   "name": "Bath & Blow Dry",
+   "short": "Gentle shampoo, conditioner and a fluffy blow dry.",
+   "category": "bath",
+   "icon": "bath",
+   "image": "/images/pets/samoyed.jpg",
+   "prices": {
+    "small": 600,
+    "medium": 750,
+    "large": 900
+   },
+   "durations": {
+    "small": 45,
+    "medium": 60,
+    "large": 75
+   },
+   "popular": true,
+   "forCats": true
+  },
+  {
+   "id": "s2",
+   "slug": "haircut-styling",
+   "name": "Haircut & Styling",
+   "short": "Breed-specific trim, face shaping and a neat finish.",
+   "category": "styling",
+   "icon": "scissors",
+   "image": "/images/pets/shih-tzu.jpg",
+   "prices": {
+    "small": 800,
+    "medium": 1000,
+    "large": 1200
+   },
+   "durations": {
+    "small": 60,
+    "medium": 75,
+    "large": 90
+   },
+   "popular": true
+  },
+  {
+   "id": "s3",
+   "slug": "nail-trimming",
+   "name": "Nail Trimming",
+   "short": "Safe clipping and filing for happy, healthy paws.",
+   "category": "hygiene",
+   "icon": "paw",
+   "image": "/images/pets/corgi-puppy.jpg",
+   "prices": {
+    "small": 250,
+    "medium": 250,
+    "large": 300
+   },
+   "durations": {
+    "small": 15,
+    "medium": 15,
+    "large": 20
+   },
+   "popular": true,
+   "forCats": true
+  },
+  {
+   "id": "s4",
+   "slug": "ear-cleaning",
+   "name": "Ear Cleaning",
+   "short": "Vet-approved cleanser to keep ears fresh and itch-free.",
+   "category": "hygiene",
+   "icon": "ear",
+   "image": "/images/pets/cavalier.jpg",
+   "prices": {
+    "small": 200,
+    "medium": 200,
+    "large": 250
+   },
+   "durations": {
+    "small": 15,
+    "medium": 15,
+    "large": 15
+   },
+   "forCats": true
+  },
+  {
+   "id": "s5",
+   "slug": "de-tick-treatment",
+   "name": "De-tick Treatment",
+   "short": "Medicated bath and thorough tick & flea removal.",
+   "category": "bath",
+   "icon": "shield",
+   "image": "/images/pets/husky.jpg",
+   "prices": {
+    "small": 700,
+    "medium": 850,
+    "large": 1000
+   },
+   "durations": {
+    "small": 45,
+    "medium": 60,
+    "large": 60
+   }
+  },
+  {
+   "id": "s6",
+   "slug": "full-grooming",
+   "name": "Full Grooming Package",
+   "short": "Bath, haircut, nails, ears and a spritz of cologne.",
+   "category": "package",
+   "icon": "sparkles",
+   "image": "/images/pets/golden-grooming.jpg",
+   "prices": {
+    "small": 1499,
+    "medium": 1799,
+    "large": 2199
+   },
+   "durations": {
+    "small": 120,
+    "medium": 150,
+    "large": 180
+   },
+   "popular": true
+  },
+  {
+   "id": "s7",
+   "slug": "teeth-cleaning",
+   "name": "Teeth Cleaning",
+   "short": "Brushing with pet-safe paste for fresh breath.",
+   "category": "hygiene",
+   "icon": "smile",
+   "image": "/images/pets/beagle.jpg",
+   "prices": {
+    "small": 300,
+    "medium": 300,
+    "large": 350
+   },
+   "durations": {
+    "small": 15,
+    "medium": 20,
+    "large": 20
+   }
+  },
+  {
+   "id": "s8",
+   "slug": "spa-massage",
+   "name": "Spa & Massage",
+   "short": "Aromatherapy bath, paw balm and a calming massage.",
+   "category": "bath",
+   "icon": "flower",
+   "image": "/images/pets/samoyed-pink.jpg",
+   "prices": {
+    "small": 999,
+    "medium": 1199,
+    "large": 1399
+   },
+   "durations": {
+    "small": 60,
+    "medium": 75,
+    "large": 90
+   },
+   "forCats": true
+  }
+ ],
+ "packages": [
+  {
+   "id": "pk1",
+   "name": "5 Bath Pack",
+   "description": "Five Bath & Blow Dry visits for one pet.",
+   "visits": 5,
+   "price": 2700,
+   "worth": 3000,
+   "validityDays": 120,
+   "includes": [
+    "5 × Bath & Blow Dry",
+    "Free nail trim on every visit",
+    "Valid 4 months"
+   ]
+  },
+  {
+   "id": "pk2",
+   "name": "Monthly Spa Plan",
+   "description": "A full grooming every month to keep them show-ready.",
+   "visits": 4,
+   "price": 5499,
+   "worth": 6000,
+   "validityDays": 120,
+   "includes": [
+    "4 × Full Grooming",
+    "Priority slots on weekends",
+    "10% off shop products"
+   ],
+   "highlight": true
+  },
+  {
+   "id": "pk3",
+   "name": "Puppy Starter",
+   "description": "A gentle introduction to grooming for puppies under 6 months.",
+   "visits": 3,
+   "price": 1299,
+   "worth": 1650,
+   "validityDays": 90,
+   "includes": [
+    "3 × Puppy bath",
+    "Nail & ear care",
+    "Grooming tips for home"
+   ]
+  }
+ ],
+ "groomers": [
+  {
+   "id": "g1",
+   "name": "Arjun Das",
+   "role": "Senior Groomer",
+   "experience": "7 yrs",
+   "speciality": "Large breeds & styling",
+   "rating": 4.9,
+   "color": "#FFD60A"
+  },
+  {
+   "id": "g2",
+   "name": "Priya Ghosh",
+   "role": "Cat Specialist",
+   "experience": "5 yrs",
+   "speciality": "Cats & anxious pets",
+   "rating": 4.8,
+   "color": "#FFB4A2"
+  },
+  {
+   "id": "g3",
+   "name": "Rahul Saha",
+   "role": "Groomer",
+   "experience": "3 yrs",
+   "speciality": "Puppies & small breeds",
+   "rating": 4.7,
+   "color": "#B9E4C9"
+  }
+ ],
+ "offers": [
+  {
+   "id": "of1",
+   "title": "Flat 20% OFF",
+   "text": "on all grooming packages this month",
+   "code": "PACK20",
+   "image": "/images/pets/golden-toy.jpg",
+   "tone": "sunshine"
+  },
+  {
+   "id": "of2",
+   "title": "Free Nail Trim",
+   "text": "with every Bath & Blow Dry on weekdays",
+   "code": "WEEKDAY",
+   "image": "/images/pets/corgi-puppy.jpg",
+   "tone": "ink"
+  },
+  {
+   "id": "of3",
+   "title": "10% OFF Shop",
+   "text": "on your first product order",
+   "code": "PAWS10",
+   "image": "/images/pets/cat-kitten.jpg",
+   "tone": "soft"
+  }
+ ],
+ "reviews": [
+  {
+   "id": "r1",
+   "name": "Ananya Mukherjee",
+   "pet": "Leo · Shih Tzu",
+   "rating": 5,
+   "text": "Leo came back looking like a little prince! The staff were so patient with him, and the booking took less than a minute.",
+   "photo": "/images/pets/shih-tzu.jpg"
+  },
+  {
+   "id": "r2",
+   "name": "Sourav Banerjee",
+   "pet": "Tiger · Golden Retriever",
+   "rating": 5,
+   "text": "Best grooming in Barasat. They remembered that Tiger hates the dryer and towel-dried him without me asking.",
+   "photo": "/images/pets/golden-flower.jpg"
+  },
+  {
+   "id": "r3",
+   "name": "Priyanka Roy",
+   "pet": "Mishti · Persian Cat",
+   "rating": 5,
+   "text": "Finally a salon that knows how to handle cats. Calm, gentle and super clean. Paying at the counter is so easy too.",
+   "photo": "/images/pets/cat-green.jpg"
+  },
+  {
+   "id": "r4",
+   "name": "Rahul Chatterjee",
+   "pet": "Bolt · Beagle",
+   "rating": 4,
+   "text": "Great de-tick treatment and fair prices. I also order Bolt's food here and pick it up during his grooming.",
+   "photo": "/images/pets/beagle.jpg"
+  },
+  {
+   "id": "r5",
+   "name": "Sneha Das",
+   "pet": "Cookie · Samoyed",
+   "rating": 5,
+   "text": "Cookie looked like a cloud after her spa day. The before/after photos in the app are adorable!",
+   "photo": "/images/pets/samoyed-pink.jpg"
+  }
+ ],
+ "gallery": [
+  {
+   "id": "g1",
+   "type": "dog",
+   "name": "Momo",
+   "service": "Haircut & Styling",
+   "before": "/images/pets/bichon-run.jpg",
+   "after": "/images/pets/shih-tzu.jpg"
+  },
+  {
+   "id": "g2",
+   "type": "dog",
+   "name": "Bruno",
+   "service": "Bath & Blow Dry",
+   "before": "/images/pets/retriever-field.jpg",
+   "after": "/images/pets/golden-bruno.jpg"
+  },
+  {
+   "id": "g3",
+   "type": "dog",
+   "name": "Pixie",
+   "service": "Puppy Starter",
+   "before": "/images/pets/yorkie-puppy.jpg",
+   "after": "/images/pets/cavalier.jpg"
+  },
+  {
+   "id": "g4",
+   "type": "cat",
+   "name": "Coco",
+   "service": "Bath & Brush",
+   "before": "/images/pets/cat-orange.jpg",
+   "after": "/images/pets/cat-tabby.jpg"
+  },
+  {
+   "id": "g5",
+   "type": "dog",
+   "name": "Cookie",
+   "service": "Spa & Massage",
+   "before": "/images/pets/samoyed.jpg",
+   "after": "/images/pets/samoyed-pink.jpg"
+  },
+  {
+   "id": "g6",
+   "type": "cat",
+   "name": "Mishti",
+   "service": "Hygiene Care",
+   "before": "/images/pets/cat-stairs.jpg",
+   "after": "/images/pets/cat-green.jpg"
+  },
+  {
+   "id": "g7",
+   "type": "dog",
+   "name": "Bolt",
+   "service": "De-tick Treatment",
+   "before": "/images/pets/lab-tongue.jpg",
+   "after": "/images/pets/beagle.jpg"
+  },
+  {
+   "id": "g8",
+   "type": "dog",
+   "name": "Sunny",
+   "service": "Full Grooming",
+   "before": "/images/pets/dog-beach.jpg",
+   "after": "/images/pets/golden-flower.jpg"
+  }
+ ],
+ "faqs": [
+  {
+   "q": "Do I need to pay online to book?",
+   "a": "No. There is no online payment anywhere. Book your slot for free and pay at the store after the service by Cash, UPI or Card."
+  },
+  {
+   "q": "Why might the final price differ from the estimate?",
+   "a": "Prices depend on coat condition. A matted coat or extra services added on the day may change the final amount. Our groomer will always tell you before starting."
+  },
+  {
+   "q": "Can I cancel or reschedule?",
+   "a": "Yes, free of charge up to 3 hours before your slot from My Bookings."
+  },
+  {
+   "q": "Do you groom cats?",
+   "a": "Yes! Priya, our cat specialist, handles cats in a quiet, dog-free room."
+  },
+  {
+   "q": "What vaccinations does my pet need?",
+   "a": "Please make sure your pet's rabies and core vaccinations are up to date. You can mark this in the pet profile."
+  }
+ ]
+}
