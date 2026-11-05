@@ -1,10 +1,13 @@
 import cluster from "node:cluster";
-import os from "node:os";
 
-/** One worker per CPU core, restarted if it crashes. The API keeps no state in memory that must be shared. */
-const count = Number(process.env.WEB_CONCURRENCY) || os.availableParallelism();
+/**
+ * For a VPS: WEB_CONCURRENCY=4 runs four workers, restarted if they crash. The API keeps no state in
+ * memory that must be shared. Without it (shared hosting such as Hostinger, which needs the main
+ * process itself to listen) this runs the API in a single process, like `node src/server.js`.
+ */
+const count = Number(process.env.WEB_CONCURRENCY) || 1;
 
-if (cluster.isPrimary) {
+if (count > 1 && cluster.isPrimary) {
   for (let i = 0; i < count; i++) cluster.fork();
   cluster.on("exit", (worker, code) => {
     if (!worker.exitedAfterDisconnect && code !== 0) {
@@ -13,6 +16,5 @@ if (cluster.isPrimary) {
     }
   });
 } else {
-  const { start } = await import("./server.js");
-  await start();
+  await import("./server.js");
 }

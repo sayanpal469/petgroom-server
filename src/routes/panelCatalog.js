@@ -5,7 +5,7 @@ import * as dto from "../lib/dto.js";
 import { badRequest, conflict, notFound } from "../lib/errors.js";
 import { decodeImage, storePublicImage } from "../lib/media.js";
 import { audit, nextSeq, saveSettings } from "../lib/misc.js";
-import { getSmsConfig, providerReady, saveSmsConfig, smsView, testConnection } from "../lib/sms.js";
+import { getSmsConfig, hasSecret, providerReady, saveSmsConfig, smsView, testConnection } from "../lib/sms.js";
 import { can } from "../middleware/auth.js";
 import { uploadLimit, writeLimit } from "../middleware/rateLimit.js";
 import { idParams, isoDate, minutes, text, validate } from "../middleware/validate.js";
@@ -274,7 +274,7 @@ router.put("/settings", can("settings.manage", "schedule.manage"), writeLimit, v
   res.json({ settings });
 });
 
-/* ---------- Login OTP provider. The password goes in but never comes back out. ---------- */
+/* ---------- Login OTP provider. The password and auth token go in but never come back out. ---------- */
 
 router.get("/sms", can("settings.manage"), async (_req, res) => {
   res.json({ sms: smsView(await getSmsConfig()) });
@@ -284,6 +284,7 @@ const smsBody = z.strictObject({
   enabled: z.boolean(),
   customerId: text(80),
   password: z.string().min(1).max(200).optional(),
+  authToken: z.string().trim().regex(/^[\w-]+\.[\w-]+\.[\w-]+$/, "Paste the full auth token").max(2000).optional(),
   demoEnabled: z.boolean(),
   demoPhone: z.string().regex(/^(\d{10})?$/, "Enter 10 digits"),
   demoCode: z.string().regex(/^(\d{4})?$/, "Enter 4 digits"),
@@ -293,16 +294,16 @@ router.put("/sms", can("settings.manage"), writeLimit, validate({ body: smsBody 
   const body = req.valid.body;
   if (body.demoEnabled && (!body.demoPhone || !body.demoCode)) throw badRequest("Enter the demo number and OTP, or switch demo login off.");
   const next = await saveSmsConfig(body);
-  if (body.enabled && !providerReady(next)) throw badRequest("Saved, but SMS stays off until the Customer ID and password are both set.");
+  if (body.enabled && !providerReady(next)) throw badRequest("Saved, but SMS stays off until the Customer ID and a password or auth token are set.");
   audit(req, "settings", "sms", `OTP settings changed (SMS ${body.enabled ? "on" : "off"}, demo ${body.demoEnabled ? "on" : "off"})`);
   res.json({ sms: smsView(next) });
 });
 
 router.post("/sms/test", can("settings.manage"), writeLimit, async (_req, res) => {
   const sms = await getSmsConfig();
-  if (!sms.customerId || !sms.passwordSealed) throw badRequest("Save the Customer ID and password first.");
+  if (!sms.customerId || !hasSecret(sms)) throw badRequest("Save the Customer ID and a password or auth token first.");
   await testConnection(sms).catch(() => {
-    throw badRequest("Message Central refused these details. Check the Customer ID and password.");
+    throw badRequest("Message Central refused these details. Check the Customer ID and password or auth token.");
   });
   res.json({ ok: true });
 });

@@ -1,10 +1,24 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { z } from "zod";
+
+// Hosts such as Hostinger start the entry file directly, without `--env-file`, so read server/.env here.
+// Values already set in the environment (the hosting panel) win over the file. Tests use their own values.
+const envFile = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.env");
+if (process.env.NODE_ENV !== "test" && fs.existsSync(envFile)) process.loadEnvFile(envFile);
 
 const hex32 = z.string().regex(/^[0-9a-f]{64}$/i, "must be 32 random bytes as hex");
 
 const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  PORT: z.coerce.number().int().positive().default(4000),
+  // A number, or a socket path when the host hands one over.
+  PORT: z
+    .string()
+    .trim()
+    .min(1)
+    .default("4000")
+    .transform((v) => (/^\d+$/.test(v) ? Number(v) : v)),
   MONGODB_URI: z.string().min(1),
   TUNNEL_SECRET: hex32,
   DATA_SECRET: hex32,

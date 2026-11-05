@@ -204,7 +204,8 @@ export async function runSeed({ superEmail = "owner@pawsstation.in", superPasswo
     const estimate = chosen.reduce((s, x) => s + x.prices[pet.size], 0);
     const _id = new mongoose.Types.ObjectId();
     const at = storeInstant(date, start);
-    const booked = new Date(at.getTime() - (2 + Math.floor(r() * 5)) * 86400_000);
+    // Booked a few days ahead, but never later than now: upcoming visits were made in the past too.
+    const booked = new Date(Math.min(at.getTime() - (2 + Math.floor(r() * 5)) * 86400_000, Date.now() - (3 + Math.floor(r() * 48)) * 3600_000));
     const history = { booked };
     const flow = ["confirmed", "scheduled", "checked_in", "grooming_started", "in_progress", "completed", "ready_for_pickup", "picked_up"];
     const reach = flow.indexOf(status);

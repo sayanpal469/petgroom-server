@@ -12,6 +12,8 @@ const replset = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEn
 process.env.MONGODB_URI = replset.getUri("paws_station");
 process.env.TUNNEL_SECRET ??= "c".repeat(64);
 process.env.DATA_SECRET ??= "d".repeat(64);
+// This script starts the API itself, after the database exists.
+process.env.PAWS_NO_AUTOSTART = "1";
 
 const { start } = await import("../src/server.js");
 await start();

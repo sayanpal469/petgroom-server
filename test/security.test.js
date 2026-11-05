@@ -366,6 +366,47 @@ test("OTP login goes through Message Central with the documented calls", async (
   assert.equal(calls.find((x) => x.path.endsWith("/validateOtp")).q.verificationId, "777");
 });
 
+test("a saved Message Central auth token is used as it is and never comes back", async () => {
+  const jwt = "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJDLTEifQ.c2lnbmF0dXJl";
+  const admin = await loginPanel("admin@t.in");
+  assert.equal((await admin.put("/panel/sms", { enabled: true, customerId: "C-1", authToken: "not a token", demoEnabled: false, demoPhone: "", demoCode: "" })).status, 400);
+  const saved = await admin.put("/panel/sms", { enabled: true, customerId: "C-1", authToken: jwt, demoEnabled: false, demoPhone: "", demoCode: "" });
+  assert.equal(saved.status, 200);
+  assert.equal(saved.body.sms.hasToken, true);
+  assert.ok(!JSON.stringify(await f.m.Settings.findById("sms").lean()).includes(jwt));
+  for (const r of [saved.body, (await admin.get("/panel/sms")).body, (await admin.get("/panel/bootstrap")).body]) {
+    assert.ok(!JSON.stringify(r).includes(jwt));
+    assert.ok(!JSON.stringify(r).includes("tokenSealed"));
+  }
+
+  const real = globalThis.fetch;
+  const calls = [];
+  let tokenWorks = true;
+  globalThis.fetch = async (url, init) => {
+    if (!String(url).startsWith("https://cpaas.messagecentral.com")) return real(url, init);
+    const u = new URL(url);
+    calls.push({ path: u.pathname, auth: init?.headers?.authToken });
+    if (!tokenWorks) return new Response(null, { status: 401 });
+    if (u.pathname.endsWith("/send")) return Response.json({ responseCode: 200, data: { verificationId: 888 } });
+    if (u.searchParams.get("verificationId") === "0") return Response.json({ responseCode: 505, data: null }, { status: 400 });
+    return Response.json({ responseCode: 200, data: { verificationStatus: u.searchParams.get("code") === "5678" ? "VERIFICATION_COMPLETED" : "FAILED" } });
+  };
+  try {
+    assert.equal((await admin.post("/panel/sms/test")).status, 200);
+    const c = await new Client().connect();
+    assert.equal((await c.post("/auth/otp/request", { phone: "9876543211" })).status, 200);
+    assert.equal((await c.post("/auth/otp/verify", { phone: "9876543211", code: "5678" })).status, 200);
+    tokenWorks = false;
+    assert.equal((await admin.post("/panel/sms/test")).status, 400);
+  } finally {
+    globalThis.fetch = real;
+    const { saveSmsConfig } = await import("../src/lib/sms.js");
+    await saveSmsConfig({ enabled: false, customerId: "", passwordSealed: "", tokenSealed: "" });
+  }
+  assert.ok(!calls.some((x) => x.path.endsWith("/token")), "a saved token needs no token request");
+  assert.ok(calls.every((x) => x.auth === jwt));
+});
+
 /* ---------- Clinic ---------- */
 
 const jpeg = async () => (await (await import("sharp")).default({ create: { width: 40, height: 40, channels: 3, background: "#fff" } }).jpeg().toBuffer()).toString("base64");
