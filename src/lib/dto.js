@@ -1,6 +1,8 @@
 import { effectivePermissions } from "../config/permissions.js";
 import { billTotals } from "./money.js";
 import { pickupCode } from "./bookings.js";
+import { mapsLink } from "./geo.js";
+import { collectCode } from "./pickdrop.js";
 
 /** Explicit shapes for everything that leaves the API. A field reaches the browser only if it is listed here. */
 const id = (v) => (v ? String(v) : null);
@@ -37,9 +39,10 @@ export const customerSelf = (u) => ({
   addresses: (u.addresses ?? []).map(address),
   prefs: u.prefs ?? {},
   needsProfile: u.name === "New Customer",
+  leadSource: u.leadSource ?? "",
 });
 
-export const pet = (p) => ({ id: id(p._id), name: p.name, type: p.type, breed: p.breed ?? "", size: p.size, age: p.age ?? "", photo: p.photo || "/images/pets/golden-bruno.jpg", vaccinated: Boolean(p.vaccinated), notes: p.notes });
+export const pet = (p) => ({ id: id(p._id), name: p.name, type: p.type, breed: p.breed ?? "", size: p.size, age: p.age ?? "", gender: p.gender ?? "", weight: p.weight ?? "", photo: p.photo || "/images/pets/golden-bruno.jpg", vaccinated: Boolean(p.vaccinated), notes: p.notes });
 export const panelPet = (p) => ({ ...pet(p), customerId: id(p.userId) });
 
 const svc = (s) => ({ id: id(s._id), slug: s.slug, name: s.name, short: s.short, category: s.category, icon: s.icon, image: s.image, prices: s.prices, durations: s.durations, popular: Boolean(s.popular), forCats: Boolean(s.forCats) });
@@ -47,7 +50,7 @@ export const service = svc;
 export const panelService = (s) => ({ ...svc(s), gstRate: s.gstRate, sac: s.sac, active: s.active });
 export const pkg = (p) => ({ id: id(p._id), name: p.name, description: p.description, visits: p.visits, price: p.price, worth: p.worth, validityDays: p.validityDays, includes: p.includes, highlight: Boolean(p.highlight) });
 
-export const groomer = (g) => ({ id: id(g._id), name: g.name, role: g.role, experience: g.experience, speciality: g.speciality, rating: g.rating, color: g.color });
+export const groomer = (g) => ({ id: id(g._id), name: g.name, role: g.role, experience: g.experience, speciality: g.speciality, rating: g.rating, color: g.color, photo: g.photo ?? "" });
 export const panelGroomer = (g) => ({ ...groomer(g), phone: g.phone ?? "", workStart: g.workStart, workEnd: g.workEnd, weeklyOff: g.weeklyOff ?? [], leaveDays: g.leaveDays ?? [], active: g.active });
 
 const variant = (v) => ({ id: v.id, label: v.label, price: v.price, mrp: v.mrp });
@@ -58,19 +61,28 @@ export const product = (p) => ({
 });
 export const panelProduct = (p) => ({ ...product(p), stock: p.stock, variants: p.variants.map((v) => ({ ...variant(v), barcode: v.barcode ?? "" })), gstRate: p.gstRate, hsn: p.hsn ?? "", lowStockLevel: p.lowStockLevel, active: p.active });
 
+/** What the customer sees of the booking amount. */
+const customerAdvance = (a) => (a?.amount ? { amount: a.amount, status: a.status, dueBy: iso(a.dueBy), paidAt: iso(a.paidAt), refundedAt: iso(a.refundedAt) } : undefined);
+const panelAdvance = (a) => (a?.amount ? { ...customerAdvance(a), paymentId: a.paymentId, method: a.method, refundId: a.refundId, refundError: a.refundError } : undefined);
+
+const leg = (l) => (l ? { lat: l.lat, lng: l.lng, address: l.address, landmark: l.landmark ?? "", km: l.km, charge: l.charge, maps: mapsLink(l) } : undefined);
+const tripBase = (p) => (p?.stage ? { pickup: leg(p.pickup), drop: leg(p.drop), charge: p.charge ?? 0, stage: p.stage, staffName: p.staffName, window: p.window, history: historyOf(p.history) } : undefined);
+const panelTrip = (p) => (p?.stage ? { ...tripBase(p), staffId: id(p.staffId), collectAttempts: p.collectAttempts ?? 0 } : undefined);
+
 export const customerBooking = (b) => ({
   id: id(b._id), bookingNo: b.bookingNo, petId: id(b.petId), serviceIds: (b.serviceIds ?? []).map(id), serviceNames: b.serviceNames ?? [], groomerId: id(b.groomerId), date: b.date, startMinutes: b.start, durationMinutes: b.duration,
   status: b.status, estimatedPrice: b.estimate, notes: b.notes, photos: b.photos?.before && b.photos?.after ? { before: b.photos.before, after: b.photos.after } : undefined, rating: b.rating, invoiceId: b.invoiceId ? id(b.invoiceId) : undefined,
-  history: historyOf(b.history),
+  history: historyOf(b.history), advance: customerAdvance(b.advance), pickDrop: tripBase(b.pickDrop),
 });
 
 /** The OTP is only shown to the booking's owner, and only while the pet waits for pickup. */
-export const customerBookingDetail = (b) => ({ ...customerBooking(b), pickupOtp: pickupCode(b) ?? undefined, pickupExpiresAt: b.status === "ready_for_pickup" ? iso(b.pickup?.expiresAt) : undefined, pickedUpAt: iso(b.pickup?.verifiedAt) });
+export const customerBookingDetail = (b) => ({ ...customerBooking(b), pickupOtp: pickupCode(b) ?? undefined, collectOtp: collectCode(b) ?? undefined, pickupExpiresAt: b.status === "ready_for_pickup" ? iso(b.pickup?.expiresAt) : undefined, pickedUpAt: iso(b.pickup?.verifiedAt) });
 
 export const panelBooking = (b) => ({
   id: id(b._id), bookingNo: b.bookingNo, customerId: id(b.userId), petId: id(b.petId), serviceIds: (b.serviceIds ?? []).map(id), serviceNames: b.serviceNames ?? [], groomerId: id(b.groomerId), date: b.date, start: b.start, duration: b.duration,
   status: b.status, source: b.source, notes: b.notes, estimate: b.estimate, photos: b.photos ?? undefined, invoiceId: b.invoiceId ? id(b.invoiceId) : undefined, createdAt: iso(b.createdAt), cancelReason: b.cancelReason, history: historyOf(b.history),
   acknowledgedAt: iso(b.acknowledgedAt), pickup: { generatedAt: iso(b.pickup?.generatedAt), expiresAt: iso(b.pickup?.expiresAt), attempts: b.pickup?.attempts ?? 0, verifiedAt: iso(b.pickup?.verifiedAt), verifiedByName: b.pickup?.verifiedByName },
+  advance: panelAdvance(b.advance), pickDrop: panelTrip(b.pickDrop),
 });
 
 const orderBase = (o) => ({
@@ -97,17 +109,26 @@ export const customerInvoice = (i) => {
   };
 };
 
-export const customer = (u) => ({ id: id(u._id), name: u.name, phone: formatPhone(u.phone), email: u.email, address: u.addresses?.[0] ? [u.addresses[0].line1, u.addresses[0].line2, u.addresses[0].city, u.addresses[0].pincode].filter(Boolean).join(", ") : undefined, notes: u.notes, noShowCount: u.noShowCount ?? 0, createdAt: iso(u.createdAt), blocked: Boolean(u.blocked) });
+export const customer = (u) => ({ id: id(u._id), name: u.name, phone: formatPhone(u.phone), email: u.email, leadSource: u.leadSource ?? "", leadNote: u.leadNote ?? "", loginSmsAt: iso(u.loginSmsAt), address: u.addresses?.[0] ? [u.addresses[0].line1, u.addresses[0].line2, u.addresses[0].city, u.addresses[0].pincode].filter(Boolean).join(", ") : undefined, notes: u.notes, noShowCount: u.noShowCount ?? 0, createdAt: iso(u.createdAt), blocked: Boolean(u.blocked) });
 
 export const coupon = (c) => ({ id: id(c._id), code: c.code, type: c.type, value: c.value, minAmount: c.minAmount, startDate: c.startDate, endDate: c.endDate, usageLimit: c.usageLimit, used: c.used, active: c.active, description: c.description });
 export const stockLog = (l) => ({ id: id(l._id), productId: id(l.productId), change: l.change, reason: l.reason, refId: l.refId, note: l.note, at: iso(l.at) });
 export const notification = (n) => ({ id: id(n._id), kind: n.kind, title: n.title, message: n.message, at: iso(n.createdAt), unread: n.unread, href: n.href });
 export const block = (b) => ({ id: id(b._id), date: b.date, start: b.start ?? null, end: b.end ?? null, reason: b.reason ?? "" });
 export const prescription = (p) => ({ id: id(p._id), petId: id(p.petId), takenOn: p.takenOn, note: p.note ?? "", size: p.size, uploadedByName: p.uploadedByName, createdAt: iso(p.createdAt) });
+export const enquiry = (e) => ({ id: id(e._id), name: e.name, phone: formatPhone(e.phone), message: e.message, source: e.source ?? "", sourceNote: e.sourceNote ?? "", status: e.status ?? (e.handled ? "contacted" : "new"), notes: e.notes ?? "", customerId: id(e.customerId), createdAt: iso(e.createdAt) });
+const punch = (p) => (p?.at ? { at: iso(p.at), lat: p.lat, lng: p.lng, accuracy: p.accuracy, distance: p.distance } : undefined);
+export const attendance = (a) => ({ id: id(a._id), userId: id(a.userId), name: a.name, role: a.role, date: a.date, in: punch(a.in), out: punch(a.out), late: Boolean(a.late) });
 export const auditRow = (a) => ({ id: id(a._id), actorName: a.actorName ?? "System", actorRole: a.actorRole ?? "", action: a.action, module: a.module, summary: a.summary, ip: a.ip, at: iso(a.at) });
 
 /** Storefront-safe settings: no invoice prefix, templates or delivery rules beyond what checkout needs. */
-export const publicStore = (s) => ({
+export const publicStore = (s, { paymentsReady = false } = {}) => ({
+  advance: s.advanceEnabled && paymentsReady ? { type: s.advanceType, value: s.advanceValue, holdMinutes: s.advanceHoldMinutes } : null,
+  pickDrop:
+    s.pickDropEnabled && Number.isFinite(s.shopLat) && Number.isFinite(s.shopLng)
+      ? { base: s.pickDropBase, perKm: s.pickDropPerKm, freeKm: s.pickDropFreeKm, maxKm: s.pickDropMaxKm, shop: { lat: s.shopLat, lng: s.shopLng } }
+      : null,
+  leadSources: s.leadSources,
   name: s.storeName, tagline: s.tagline, phone: s.phone, phoneRaw: s.phone.replace(/\D/g, ""), email: s.email, address: s.address, gstin: s.gstin, gstEnabled: s.gstEnabled,
   openTime: s.openTime, closeTime: s.closeTime, freeDeliveryAbove: s.freeDeliveryAbove, deliveryCharge: s.deliveryCharge, codLimit: s.codLimit, deliveryPincodes: s.deliveryPincodes, cancelCutoffHours: s.cancelCutoffHours, bookingWindowDays: s.bookingWindowDays, holidays: s.holidays,
 });

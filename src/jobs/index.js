@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { reconcileAdvance } from "../lib/advance.js";
 import { setStatus } from "../lib/bookings.js";
 import { setOrderStatus } from "../lib/commerce.js";
 import { logger } from "../lib/logger.js";
@@ -6,7 +7,8 @@ import { addDaysISO, getSettings, storeInstant, storeNow } from "../lib/misc.js"
 import { Booking, Lease, Notification, Order } from "../models/index.js";
 
 const owner = randomUUID();
-const EVERY_MS = 5 * 60_000;
+// Short enough that a slot held for an unpaid booking amount is released soon after its time runs out.
+const EVERY_MS = 2 * 60_000;
 
 /** With several workers or servers, only the holder of this lease runs the jobs. */
 async function takeLease() {
@@ -29,6 +31,19 @@ export async function autoCancelUnconfirmed(settings) {
   }
 }
 
+/** Releases slots whose booking amount wasn't paid in time, after one last check with Razorpay. */
+export async function expireUnpaidAdvances() {
+  const due = await Booking.find({ status: "pending", "advance.status": "due", "advance.dueBy": { $lt: new Date() } }).limit(200);
+  for (const b of due) {
+    try {
+      const fresh = await reconcileAdvance(b);
+      if (fresh.advance?.status === "due") await setStatus(fresh, "cancelled", { reason: "Booking amount not paid in time" });
+    } catch (err) {
+      logger.error({ err, booking: b.bookingNo }, "advance expiry failed");
+    }
+  }
+}
+
 export async function expireUncollectedOrders(settings) {
   const before = new Date(Date.now() - settings.pickupHoldDays * 86400_000);
   const stale = await Order.find({ status: "ready_for_pickup", updatedAt: { $lt: before } });
@@ -48,6 +63,7 @@ async function tick() {
   try {
     if (!(await takeLease())) return;
     const settings = await getSettings();
+    await expireUnpaidAdvances();
     await autoCancelUnconfirmed(settings);
     await expireUncollectedOrders(settings);
     await sendReminders();

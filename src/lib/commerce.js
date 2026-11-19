@@ -132,9 +132,12 @@ export async function createInvoice(draft, actor) {
   return withTxn(async (session) => {
     const { source, couponId } = draft;
     let order = null;
+    let advance = null;
     if (source.type === "booking") {
-      const res = await Booking.updateOne({ _id: source.refId, $or: [{ invoiceId: null }, { invoiceId: { $exists: false } }], status: { $nin: ["cancelled", "no_show"] } }, { $set: { invoiceId: draft._id } }, { session });
-      if (!res.modifiedCount) throw conflict("This booking already has a bill.", "already_billed");
+      const booking = await Booking.findOneAndUpdate({ _id: source.refId, $or: [{ invoiceId: null }, { invoiceId: { $exists: false } }], status: { $nin: ["cancelled", "no_show"] } }, { $set: { invoiceId: draft._id } }, { session, projection: { advance: 1 } }).lean();
+      if (!booking) throw conflict("This booking already has a bill.", "already_billed");
+      // The booking amount paid online is part of this bill's payment. The browser can't add or change it.
+      if (booking.advance?.status === "paid") advance = { mode: "Online", amount: booking.advance.amount, reference: booking.advance.paymentId, at: booking.advance.paidAt ?? new Date() };
     }
     if (source.type === "order") {
       order = await Order.findOneAndUpdate({ _id: source.refId, $or: [{ invoiceId: null }, { invoiceId: { $exists: false } }], status: { $ne: "cancelled" } }, { $set: { invoiceId: draft._id } }, { session, returnDocument: "after" }).lean();
@@ -143,9 +146,10 @@ export async function createInvoice(draft, actor) {
 
     const seq = await nextSeq("invoice", 10300, session);
     const at = new Date();
-    const payments = draft.payments.filter((p) => p.amount > 0).map((p) => ({ ...p, at }));
+    const payments = [...(advance ? [advance] : []), ...draft.payments.filter((p) => p.amount > 0).map((p) => ({ ...p, at }))];
     const bill = { items: draft.items, discountPercent: draft.discountPercent, discountFlat: draft.discountFlat, gstEnabled: settings.gstEnabled, payments };
     const totals = billTotals(bill);
+    if (advance && advance.amount > totals.total + 0.005) throw badRequest(`The booking amount already paid online (₹${advance.amount}) is more than this bill. Add the services before billing.`);
     if (totals.paid > totals.total + 0.005) throw badRequest("Payment is more than the bill total.");
 
     const [invoice] = await Invoice.create(

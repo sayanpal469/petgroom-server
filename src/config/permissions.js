@@ -1,5 +1,5 @@
-export const ROLES = ["customer", "staff", "admin", "super_admin", "clinic"];
-export const PANEL_ROLES = ["staff", "admin", "super_admin", "clinic"];
+export const ROLES = ["customer", "staff", "admin", "super_admin", "clinic", "driver", "accountant"];
+export const PANEL_ROLES = ["staff", "admin", "super_admin", "clinic", "driver", "accountant"];
 
 /** Every module a panel account can be given. The API checks these; the panel only hides what is missing. */
 export const PERMISSIONS = [
@@ -19,14 +19,22 @@ export const PERMISSIONS = [
   "clinic.upload",
   "users.manage",
   "audit.view",
+  "attendance.own",
+  "attendance.manage",
+  "pickdrop.manage",
+  "pickdrop.own",
+  "gst.view",
 ];
 
-const ADMIN_DEFAULT = PERMISSIONS.filter((p) => !["users.manage", "audit.view", "clinic.upload", "work.own"].includes(p));
+const ADMIN_DEFAULT = PERMISSIONS.filter((p) => !["users.manage", "audit.view", "clinic.upload", "work.own", "pickdrop.own"].includes(p));
 
 export const ROLE_DEFAULTS = {
   customer: [],
-  staff: ["work.own"],
+  staff: ["work.own", "attendance.own"],
   clinic: ["clinic.view", "clinic.upload"],
+  driver: ["pickdrop.own", "attendance.own"],
+  // The store's CA: read-only bills and GST reports for filing returns.
+  accountant: ["gst.view"],
   admin: ADMIN_DEFAULT,
   super_admin: PERMISSIONS,
 };

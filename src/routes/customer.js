@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { env } from "../config/env.js";
 import { z } from "zod";
+import { checkoutFor, reconcileAdvance, verifyAdvance } from "../lib/advance.js";
 import { createBooking, customerMayChange, moveBooking, setStatus } from "../lib/bookings.js";
 import { placeOrder, setOrderStatus } from "../lib/commerce.js";
 import { hmac, randomDigits, safeEqual } from "../lib/crypto.js";
@@ -66,8 +67,8 @@ authRouter.post("/otp/verify", otpVerifyLimit, validate({ body: z.strictObject({
   if (user && (user.role !== "customer" || user.status !== "active")) throw badRequest("That code didn't match. Please try again.", "wrong_otp");
   const isNew = !user;
   user ??= await User.create({ role: "customer", name: "New Customer", phone });
-  await startSession(req, res, user, "customer");
-  res.json({ user: dto.customerSelf(user), isNew });
+  const token = await startSession(req, res, user, "customer");
+  res.json({ user: dto.customerSelf(user), isNew, ...(token ? { token } : {}) });
 });
 
 authRouter.get("/me", optionalCustomer, (req, res) => {
@@ -102,10 +103,29 @@ meRouter.get("/bootstrap", async (req, res) => {
   });
 });
 
-const profile = z.strictObject({ name: text(80).min(2).optional(), email: z.union([z.email().max(120), z.literal("")]).optional(), prefs: z.record(z.string().max(40), z.boolean()).optional() });
+const profile = z.strictObject({
+  name: text(80).min(2).optional(),
+  email: z.union([z.email().max(120), z.literal("")]).optional(),
+  prefs: z.record(z.string().max(40), z.boolean()).optional(),
+  leadSource: text(40).optional(),
+  leadNote: text(120).optional(),
+});
+
+/** A lead source must be one of the store's list (Settings). */
+export async function checkLeadSource(source) {
+  if (!source) return;
+  const { leadSources } = await getSettings();
+  if (!leadSources.some((l) => l.id === source)) throw badRequest("Choose how you heard about us from the list.", "invalid_input");
+}
 
 meRouter.patch("/profile", writeLimit, validate({ body: profile }), async (req, res) => {
-  const { name, email, prefs } = req.valid.body;
+  const { name, email, prefs, leadSource, leadNote } = req.valid.body;
+  // How the customer found the store is asked once; the store can correct it from the panel.
+  if (leadSource && !req.user.leadSource) {
+    await checkLeadSource(leadSource);
+    req.user.leadSource = leadSource;
+    req.user.leadNote = leadNote || undefined;
+  }
   if (name) req.user.name = name;
   if (email !== undefined) req.user.email = email ? email : undefined;
   if (prefs) req.user.prefs = { ...req.user.prefs, ...prefs };
@@ -165,6 +185,8 @@ const petBody = z.strictObject({
   breed: text(60).optional().default(""),
   size: z.enum(["small", "medium", "large"]),
   age: text(20).optional().default(""),
+  gender: z.enum(["male", "female"]).optional(),
+  weight: text(20).optional(),
   vaccinated: z.boolean().optional().default(false),
   notes: text(300).optional(),
   photoData: z.string().max(12_000_000).optional(),
@@ -199,17 +221,54 @@ meRouter.delete("/pets/:id", writeLimit, validate({ params: idParams }), async (
 
 const ownBooking = async (req, withOtp = false) => {
   const q = Booking.findOne({ _id: req.valid.params.id, userId: req.user._id });
-  const b = await (withOtp ? q.select("+pickup.otpSealed") : q);
+  const b = await (withOtp ? q.select("+pickup.otpSealed +pickDrop.collectOtpSealed") : q);
   if (!b) throw notFound("Booking not found.");
   return b;
 };
 
-const newBooking = z.strictObject({ petId: objectId, serviceIds: z.array(objectId).min(1).max(10), groomerId: objectId.nullish(), date: isoDate, start: minutes, notes: text(500).optional() });
+const place = z.strictObject({
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
+  address: text(300).min(5, "Enter the full address"),
+  landmark: text(120).optional(),
+});
+export const pickDropBody = z.strictObject({ pickup: place.optional(), drop: place.optional() }).refine((v) => v.pickup || v.drop, "Choose pickup, drop or both");
+
+const newBooking = z.strictObject({ petId: objectId, serviceIds: z.array(objectId).min(1).max(10), groomerId: objectId.nullish(), date: isoDate, start: minutes, notes: text(500).optional(), pickDrop: pickDropBody.optional() });
 
 meRouter.post("/bookings", writeLimit, validate({ body: newBooking }), async (req, res) => {
   if (req.user.blocked) throw forbidden("Online booking is unavailable on your account. Please call the store.");
   const booking = await createBooking({ ...req.valid.body, userId: req.user._id, source: "online" });
-  res.status(201).json({ booking: dto.customerBooking(booking) });
+  // The slot is already held. If the gateway can't open an order now, the customer pays from the booking page.
+  const payment = booking.advance?.status === "due" ? await checkoutFor(booking, req.user).catch((err) => (logger.error({ err }, "checkout order failed"), null)) : null;
+  res.status(201).json({ booking: dto.customerBooking(booking), payment });
+});
+
+/* ---------- Booking amount (Razorpay) ---------- */
+
+meRouter.post("/bookings/:id/pay", writeLimit, validate({ params: idParams }), async (req, res) => {
+  const booking = await ownBooking(req);
+  const late = booking.advance?.status === "expired" || (booking.advance?.status === "due" && booking.advance.dueBy < new Date());
+  if (late) {
+    // The money may have arrived without the browser reporting it.
+    const fresh = await reconcileAdvance(booking);
+    if (fresh.advance?.status === "paid") return res.json({ booking: dto.customerBooking(fresh), payment: null });
+    throw conflict("The time to pay has run out, so this slot is being released. Please book again.", "payment_expired");
+  }
+  res.json({ booking: dto.customerBooking(booking), payment: await checkoutFor(booking, req.user) });
+});
+
+const paidBody = z.strictObject({ orderId: z.string().regex(/^order_\w{6,40}$/), paymentId: z.string().regex(/^pay_\w{6,40}$/), signature: z.string().regex(/^[0-9a-f]{64}$/) });
+
+meRouter.post("/bookings/:id/pay/verify", writeLimit, validate({ params: idParams, body: paidBody }), async (req, res) => {
+  const booking = await verifyAdvance(await ownBooking(req), req.valid.body);
+  res.json({ booking: dto.customerBooking(booking) });
+});
+
+/** After Checkout closes without a result: Razorpay may still have taken the money. */
+meRouter.post("/bookings/:id/pay/check", writeLimit, validate({ params: idParams }), async (req, res) => {
+  const booking = await reconcileAdvance(await ownBooking(req));
+  res.json({ booking: dto.customerBooking(booking) });
 });
 
 meRouter.get("/bookings/:id", validate({ params: idParams }), async (req, res) => {

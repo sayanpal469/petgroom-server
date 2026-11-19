@@ -5,6 +5,7 @@ import * as dto from "../lib/dto.js";
 import { badRequest, conflict, notFound } from "../lib/errors.js";
 import { decodeImage, storePublicImage } from "../lib/media.js";
 import { audit, nextSeq, saveSettings } from "../lib/misc.js";
+import { getPayConfig, payReady, payView, savePayConfig, testKeys } from "../lib/payments.js";
 import { getSmsConfig, hasSecret, providerReady, saveSmsConfig, smsView, testConnection } from "../lib/sms.js";
 import { can } from "../middleware/auth.js";
 import { uploadLimit, writeLimit } from "../middleware/rateLimit.js";
@@ -164,7 +165,12 @@ router.get("/barcodes/:code", can("inventory.manage", "billing.manage", "catalog
 
 /* ---------- Groomers ---------- */
 
-const groomerBody = z.strictObject({ name: text(80).min(2), phone: text(20).optional().default(""), role: text(60).optional().default("Groomer"), experience: text(30).optional().default(""), speciality: text(160).optional().default(""), rating: z.number().min(0).max(5).optional(), color: z.string().regex(/^#[0-9a-fA-F]{6}$/), workStart: minutes, workEnd: minutes, weeklyOff: z.array(z.number().int().min(0).max(6)).max(7), leaveDays: z.array(isoDate).max(366), active: z.boolean() });
+/** A groomer's professional photo, shown to customers when they choose a groomer. */
+router.post("/groomers/photo", can("schedule.manage", "staff.assign"), uploadLimit, validate({ body: z.strictObject({ image: z.string().max(12_000_000) }) }), async (req, res) => {
+  res.status(201).json({ url: await storePublicImage(decodeImage(req.valid.body.image), "groomer.jpg", 800) });
+});
+
+const groomerBody = z.strictObject({ photo: imageRef.or(z.literal("")).optional(), name: text(80).min(2), phone: text(20).optional().default(""), role: text(60).optional().default("Groomer"), experience: text(30).optional().default(""), speciality: text(160).optional().default(""), rating: z.number().min(0).max(5).optional(), color: z.string().regex(/^#[0-9a-fA-F]{6}$/), workStart: minutes, workEnd: minutes, weeklyOff: z.array(z.number().int().min(0).max(6)).max(7), leaveDays: z.array(isoDate).max(366), active: z.boolean() });
 
 router.post("/groomers", can("schedule.manage", "staff.assign"), writeLimit, validate({ body: groomerBody }), async (req, res) => {
   const groomer = await Groomer.create(req.valid.body);
@@ -261,6 +267,25 @@ const settingsBody = z.strictObject({
   codLimit: z.number().min(0).max(1e7),
   invoicePrefix: z.string().regex(/^[A-Z0-9]{1,8}$/),
   templates: z.strictObject({ bookingConfirmed: text(500), reminder: text(500), orderReady: text(500) }),
+  shopLat: z.number().min(-90).max(90).nullable(),
+  shopLng: z.number().min(-180).max(180).nullable(),
+  attendanceRadius: z.number().int().min(20).max(1000),
+  attendanceGraceMinutes: z.number().int().min(0).max(240),
+  advanceEnabled: z.boolean(),
+  advanceType: z.enum(["flat", "percent"]),
+  advanceValue: z.number().min(0).max(1e5),
+  advanceHoldMinutes: z.number().int().min(5).max(120),
+  pickDropEnabled: z.boolean(),
+  pickDropBase: z.number().min(0).max(1e5),
+  pickDropPerKm: z.number().min(0).max(1e4),
+  pickDropFreeKm: z.number().min(0).max(100),
+  pickDropMaxKm: z.number().min(1).max(100),
+  pickDropGst: z.number().min(0).max(50),
+  leadSources: z
+    .array(z.strictObject({ id: z.string().regex(/^[a-z0-9_]{2,40}$/), label: text(60).min(2) }))
+    .min(1)
+    .max(30)
+    .refine((l) => new Set(l.map((x) => x.id)).size === l.length, "Each source needs its own id"),
 }).partial();
 
 router.put("/settings", can("settings.manage", "schedule.manage"), writeLimit, validate({ body: settingsBody }), async (req, res) => {
@@ -268,6 +293,9 @@ router.put("/settings", can("settings.manage", "schedule.manage"), writeLimit, v
   if (!req.permissions.has("settings.manage") && Object.keys(req.valid.body).some((k) => !SCHEDULE.includes(k))) throw badRequest("You can only change schedule settings.");
   const { openTime, closeTime } = req.valid.body;
   if (openTime != null && closeTime != null && closeTime <= openTime) throw badRequest("Closing time must be after opening time.");
+  const b = req.valid.body;
+  if (b.advanceType === "percent" && b.advanceValue > 100) throw badRequest("A percentage booking amount can't be more than 100%.");
+  if ((b.shopLat == null) !== (b.shopLng == null) && ("shopLat" in b || "shopLng" in b)) throw badRequest("Enter both latitude and longitude of the shop.");
   const settings = await saveSettings(req.valid.body);
   clearPublicCache();
   audit(req, "settings", "update", `Settings changed: ${Object.keys(req.valid.body).join(", ")}`);
@@ -281,6 +309,9 @@ router.get("/sms", can("settings.manage"), async (_req, res) => {
 });
 
 const smsBody = z.strictObject({
+  senderId: z.string().regex(/^([A-Z]{6})?$/, "Sender ID is 6 capital letters").optional(),
+  siteUrl: z.union([z.url().max(200), z.literal("")]).optional(),
+  loginTemplate: text(480).min(10).optional(),
   enabled: z.boolean(),
   customerId: text(80),
   password: z.string().min(1).max(200).optional(),
@@ -297,6 +328,35 @@ router.put("/sms", can("settings.manage"), writeLimit, validate({ body: smsBody 
   if (body.enabled && !providerReady(next)) throw badRequest("Saved, but SMS stays off until the Customer ID and a password or auth token are set.");
   audit(req, "settings", "sms", `OTP settings changed (SMS ${body.enabled ? "on" : "off"}, demo ${body.demoEnabled ? "on" : "off"})`);
   res.json({ sms: smsView(next) });
+});
+
+/* ---------- Payment gateway (Razorpay) for the booking amount. The key secret goes in but never comes back out. ---------- */
+
+router.get("/payments", can("settings.manage"), async (_req, res) => {
+  res.json({ payments: payView(await getPayConfig()) });
+});
+
+const payBody = z.strictObject({
+  enabled: z.boolean(),
+  keyId: z.string().trim().regex(/^(rzp_(test|live)_\w{6,30})?$/, "The key id starts with rzp_live_ or rzp_test_"),
+  keySecret: z.string().trim().min(10).max(100).optional(),
+});
+
+router.put("/payments", can("settings.manage"), writeLimit, validate({ body: payBody }), async (req, res) => {
+  const next = await savePayConfig(req.valid.body);
+  clearPublicCache();
+  if (req.valid.body.enabled && !payReady(next)) throw badRequest("Saved, but online payment stays off until the key id and key secret are set.");
+  audit(req, "settings", "payments", `Payment gateway ${req.valid.body.enabled ? "on" : "off"} (${next.keyId || "no key"})`);
+  res.json({ payments: payView(next) });
+});
+
+router.post("/payments/test", can("settings.manage"), writeLimit, async (_req, res) => {
+  const pay = await getPayConfig();
+  if (!pay.keyId || !pay.secretSealed) throw badRequest("Save the key id and key secret first.");
+  await testKeys(pay).catch(() => {
+    throw badRequest("Razorpay refused these keys. Check the key id and key secret.");
+  });
+  res.json({ ok: true });
 });
 
 router.post("/sms/test", can("settings.manage"), writeLimit, async (_req, res) => {

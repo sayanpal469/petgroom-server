@@ -4,6 +4,7 @@ import { checkCoupon } from "../lib/commerce.js";
 import * as dto from "../lib/dto.js";
 import { conflict } from "../lib/errors.js";
 import { getSettings } from "../lib/misc.js";
+import { getPayConfig, payReady } from "../lib/payments.js";
 import { slotsFor } from "../lib/slots.js";
 import { enquiryLimit } from "../middleware/rateLimit.js";
 import { isoDate, objectId, phone10, text, validate } from "../middleware/validate.js";
@@ -22,8 +23,9 @@ export const clearPublicCache = () => {
 
 router.get("/bootstrap", async (_req, res) => {
   if (!cache || Date.now() - cachedAt > CACHE_MS) {
-    const [settings, services, packages, groomers, products, content] = await Promise.all([
+    const [settings, pay, services, packages, groomers, products, content] = await Promise.all([
       getSettings(),
+      getPayConfig(),
       Service.find({ active: true }).sort({ order: 1 }).lean(),
       Package.find().sort({ price: 1 }).lean(),
       Groomer.find({ active: true }).lean(),
@@ -32,7 +34,7 @@ router.get("/bootstrap", async (_req, res) => {
     ]);
     const of = (kind) => content.filter((c) => c.kind === kind).map((c) => ({ id: String(c._id), ...c.data }));
     cache = {
-      store: dto.publicStore(settings),
+      store: dto.publicStore(settings, { paymentsReady: payReady(pay) }),
       services: services.map(dto.service),
       packages: packages.map(dto.pkg),
       groomers: groomers.map(dto.groomer),
@@ -70,8 +72,13 @@ router.post("/coupons/check", validate({ body: z.strictObject({ code: text(30).m
   res.json({ code: coupon.code, discount, label: coupon.description });
 });
 
-router.post("/enquiries", enquiryLimit, validate({ body: z.strictObject({ name: text(80).min(2), phone: phone10, message: text(1000).min(5) }) }), async (req, res) => {
-  await Enquiry.create(req.valid.body);
+const enquiryBody = z.strictObject({ name: text(80).min(2), phone: phone10, message: text(1000).min(5), source: text(40).optional(), sourceNote: text(120).optional() });
+
+router.post("/enquiries", enquiryLimit, validate({ body: enquiryBody }), async (req, res) => {
+  const { leadSources } = await getSettings();
+  const { source, sourceNote, ...rest } = req.valid.body;
+  const known = source && leadSources.some((l) => l.id === source);
+  await Enquiry.create({ ...rest, ...(known ? { source, sourceNote: sourceNote || undefined } : {}) });
   res.status(201).json({ ok: true });
 });
 

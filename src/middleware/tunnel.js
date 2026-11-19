@@ -101,6 +101,8 @@ export function tunnel(req, res, next) {
   req.url = `${INNER_PREFIX}${path}`;
   req.body = call.b ?? {};
   req.tunneled = true;
+  // The app's session token travels inside the encrypted call, never in a header or cookie.
+  if (req.appClient && typeof call.a === "string" && call.a.length <= 100) req.appToken = call.a;
   next();
 }
 

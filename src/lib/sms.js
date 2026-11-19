@@ -16,7 +16,9 @@ export const OTP_LENGTH = 4;
 const CACHE_MS = env.isTest ? 0 : 15_000;
 const TOKEN_MS = 30 * 60_000;
 
-const DEFAULTS = { enabled: false, customerId: "", passwordSealed: "", tokenSealed: "", demoEnabled: false, demoPhone: "", demoCode: "" };
+export const DEFAULT_LOGIN_TEMPLATE = "Hi {name}, your Paws Station account is ready. Log in at {link} with your mobile number {phone} and the OTP we send you. - Paws Station";
+
+const DEFAULTS = { enabled: false, customerId: "", passwordSealed: "", tokenSealed: "", demoEnabled: false, demoPhone: "", demoCode: "", senderId: "", siteUrl: "", loginTemplate: DEFAULT_LOGIN_TEMPLATE };
 
 let cached = null;
 let cachedAt = 0;
@@ -41,7 +43,18 @@ export async function saveSmsConfig({ password, authToken: newToken, ...patch })
   return next;
 }
 
-export const smsView = (c) => ({ enabled: c.enabled, customerId: c.customerId, hasPassword: Boolean(c.passwordSealed), hasToken: Boolean(c.tokenSealed), demoEnabled: c.demoEnabled, demoPhone: c.demoPhone, demoCode: c.demoCode });
+export const smsView = (c) => ({
+  enabled: c.enabled,
+  customerId: c.customerId,
+  hasPassword: Boolean(c.passwordSealed),
+  hasToken: Boolean(c.tokenSealed),
+  demoEnabled: c.demoEnabled,
+  demoPhone: c.demoPhone,
+  demoCode: c.demoCode,
+  senderId: c.senderId,
+  siteUrl: c.siteUrl,
+  loginTemplate: c.loginTemplate,
+});
 
 export const isDemoPhone = (c, phone) => c.demoEnabled && Boolean(c.demoPhone) && c.demoPhone === phone;
 export const isDemoLogin = (c, phone, code) => isDemoPhone(c, phone) && Boolean(c.demoCode) && safeEqual(c.demoCode, code);
@@ -92,3 +105,14 @@ export async function checkOtp(c, phone, verificationId, code) {
   const { body } = await call(`${BASE}/verification/v3/validateOtp?${q}`, { headers: { authToken: await authToken(c) } });
   return body?.data?.verificationStatus === "VERIFICATION_COMPLETED";
 }
+
+/** Plain SMS (not OTP), such as login details. Indian rules need a DLT-approved sender ID and template text. */
+export const textReady = (c) => providerReady(c) && Boolean(c.senderId);
+
+export async function sendText(c, phone, message) {
+  const q = new URLSearchParams({ countryCode: "91", customerId: c.customerId, senderId: c.senderId, type: "SMS", flowType: "SMS", mobileNumber: phone, message });
+  const { status, body } = await call(`${BASE}/verification/v3/send?${q}`, { method: "POST", headers: { authToken: await authToken(c) } });
+  if (status !== 200 || (body?.responseCode && body.responseCode !== 200)) throw new Error(`Message Central SMS failed (${status}${body?.responseCode ? `/${body.responseCode}` : ""})`);
+}
+
+export const fillTemplate = (template, values) => template.replace(/\{(\w+)\}/g, (m, k) => (k in values ? String(values[k]) : m));

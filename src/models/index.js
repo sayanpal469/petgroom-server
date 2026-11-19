@@ -31,7 +31,7 @@ const addressSchema = new Schema(
 
 const userSchema = new Schema(
   {
-    role: { type: String, enum: ["customer", "staff", "admin", "super_admin", "clinic"], required: true },
+    role: { type: String, enum: ["customer", "staff", "admin", "super_admin", "clinic", "driver", "accountant"], required: true },
     name: { type: String, required: true, trim: true },
     phone: { type: String, trim: true },
     email: { type: String, trim: true, lowercase: true },
@@ -49,6 +49,11 @@ const userSchema = new Schema(
     noShowCount: { type: Number, default: 0 },
     blocked: { type: Boolean, default: false },
     prefs: { type: Schema.Types.Mixed, default: {} },
+    leadSource: String,
+    leadNote: String,
+    loginSmsAt: Date,
+    // staff: hash of the one phone allowed to mark attendance
+    attendanceDevice: { type: String, select: false },
   },
   opts(),
 );
@@ -94,6 +99,8 @@ const petSchema = new Schema(
     breed: String,
     size: { type: String, enum: ["small", "medium", "large"], required: true },
     age: String,
+    gender: { type: String, enum: ["male", "female"] },
+    weight: String,
     photo: String,
     vaccinated: { type: Boolean, default: false },
     notes: String,
@@ -146,6 +153,7 @@ const groomerSchema = new Schema(
     speciality: String,
     rating: { type: Number, default: 5 },
     color: String,
+    photo: String,
     phone: String,
     workStart: Number,
     workEnd: Number,
@@ -196,6 +204,43 @@ const pickupSchema = new Schema(
   { _id: false },
 );
 
+/** Booking amount paid online through the payment gateway (Razorpay). Amounts are in rupees. */
+const advanceSchema = new Schema(
+  {
+    amount: Number,
+    status: { type: String, enum: ["due", "paid", "refunded", "refund_failed", "expired"] },
+    dueBy: Date,
+    orderId: String,
+    paymentId: String,
+    method: String,
+    paidAt: Date,
+    refundId: String,
+    refundedAt: Date,
+    refundError: String,
+  },
+  { _id: false },
+);
+
+const pdLegSchema = new Schema({ lat: Number, lng: Number, address: String, landmark: String, km: Number, charge: Number }, { _id: false });
+
+export const PICKDROP_STAGES = ["requested", "assigned", "collected", "at_store", "out_for_drop", "delivered", "cancelled"];
+
+const pickDropSchema = new Schema(
+  {
+    pickup: pdLegSchema,
+    drop: pdLegSchema,
+    charge: Number,
+    stage: { type: String, enum: PICKDROP_STAGES },
+    staffId: { type: Id, ref: "User" },
+    staffName: String,
+    window: String,
+    collectOtpSealed: { type: String, select: false },
+    collectAttempts: { type: Number, default: 0 },
+    history: { type: Map, of: Date, default: {} },
+  },
+  { _id: false },
+);
+
 export const BOOKING_STATUS = ["pending", "confirmed", "scheduled", "checked_in", "grooming_started", "in_progress", "completed", "ready_for_pickup", "picked_up", "cancelled", "no_show"];
 
 const bookingSchema = new Schema(
@@ -220,10 +265,14 @@ const bookingSchema = new Schema(
     history: { type: Map, of: Date, default: {} },
     acknowledgedAt: Date,
     pickup: { type: pickupSchema, default: () => ({}) },
+    advance: advanceSchema,
+    pickDrop: pickDropSchema,
   },
   opts(),
 );
 bookingSchema.index({ userId: 1, date: -1 });
+bookingSchema.index({ "pickDrop.staffId": 1, date: 1 }, { sparse: true });
+bookingSchema.index({ "advance.status": 1, "advance.dueBy": 1 }, { sparse: true });
 bookingSchema.index({ date: 1, status: 1 });
 bookingSchema.index({ groomerId: 1, date: 1 });
 
@@ -290,7 +339,7 @@ const invoiceSchema = new Schema(
     discountFlat: Number,
     discountLabel: String,
     gstEnabled: Boolean,
-    payments: [{ mode: { type: String, enum: ["Cash", "UPI", "Card"] }, amount: Number, at: Date, reference: String, _id: false }],
+    payments: [{ mode: { type: String, enum: ["Cash", "UPI", "Card", "Online"] }, amount: Number, at: Date, reference: String, _id: false }],
     status: { type: String, enum: ["paid", "unpaid", "partly_paid", "cancelled"], default: "unpaid" },
     cancelReason: String,
     createdBy: { type: Id, ref: "User" },
@@ -381,7 +430,38 @@ const contentSchema = new Schema(
   opts(),
 );
 
-const enquirySchema = new Schema({ name: String, phone: String, message: String, handled: { type: Boolean, default: false } }, opts());
+const enquirySchema = new Schema(
+  {
+    name: String,
+    phone: String,
+    message: String,
+    handled: { type: Boolean, default: false },
+    source: String,
+    sourceNote: String,
+    status: { type: String, enum: ["new", "contacted", "converted", "lost"], default: "new" },
+    notes: String,
+    customerId: { type: Id, ref: "User" },
+  },
+  opts(),
+);
+enquirySchema.index({ createdAt: -1 });
+
+/** One row per person per store day. Times come from the server clock, never the phone. */
+const punchSchema = new Schema({ at: Date, lat: Number, lng: Number, accuracy: Number, distance: Number }, { _id: false });
+const attendanceSchema = new Schema(
+  {
+    userId: { type: Id, ref: "User", required: true },
+    name: String,
+    role: String,
+    date: { type: String, required: true },
+    in: punchSchema,
+    out: punchSchema,
+    late: { type: Boolean, default: false },
+  },
+  opts(),
+);
+attendanceSchema.index({ userId: 1, date: 1 }, { unique: true });
+attendanceSchema.index({ date: 1 });
 
 const leaseSchema = new Schema({ _id: String, until: Date, owner: String }, { versionKey: false });
 
@@ -412,3 +492,4 @@ export const AuditLog = m("AuditLog", auditSchema);
 export const Content = m("Content", contentSchema);
 export const Enquiry = m("Enquiry", enquirySchema);
 export const Lease = m("Lease", leaseSchema);
+export const Attendance = m("Attendance", attendanceSchema);

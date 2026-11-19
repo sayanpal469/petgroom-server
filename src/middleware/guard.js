@@ -23,6 +23,13 @@ export function corsForOurSites(req, res, next) {
  * header forces a CORS preflight, which this API approves only for our own sites.
  */
 export function sameSiteOnly(req, _res, next) {
+  // The mobile apps are not browsers: they send no Origin and log in with a token, not a cookie.
+  // A web page can't pass as the app, because browsers always add Origin to these calls.
+  if (req.get("x-ps-client") === "app") {
+    if (req.get("origin")) return next(forbidden("Request blocked."));
+    req.appClient = true;
+    return next();
+  }
   const origin = (req.get("origin") ?? "").replace(/\/$/, "");
   const fetchSite = req.get("sec-fetch-site");
   if (req.get("x-ps-client") !== "web") return next(forbidden("Request blocked."));

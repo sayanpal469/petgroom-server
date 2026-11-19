@@ -15,6 +15,7 @@ import { authRouter, meRouter } from "./routes/customer.js";
 import panelAdmin from "./routes/panelAdmin.js";
 import panelAuth from "./routes/panelAuth.js";
 import panelCatalog from "./routes/panelCatalog.js";
+import panelExtra from "./routes/panelExtra.js";
 import panelOps from "./routes/panelOps.js";
 import publicRouter from "./routes/public.js";
 
@@ -49,7 +50,7 @@ export function createApp() {
   inner.use("/auth", authRouter);
   inner.use("/me", meRouter);
   inner.use("/panel/auth", panelAuth);
-  inner.use("/panel", requirePanel, panelOps, panelCatalog, panelAdmin);
+  inner.use("/panel", requirePanel, panelOps, panelCatalog, panelAdmin, panelExtra);
   app.use(INNER_PREFIX, inner);
 
   app.use((_req, _res, next) => next(notFound()));

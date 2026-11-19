@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { Router } from "express";
 import { z } from "zod";
+import { reconcileAdvance, refundAdvance } from "../lib/advance.js";
 import { createBooking, moveBooking, notifyStaff, regeneratePickup, setStatus, verifyPickup } from "../lib/bookings.js";
 import { addPayment, cancelInvoice, createInvoice, setOrderStatus } from "../lib/commerce.js";
 import * as dto from "../lib/dto.js";
@@ -12,6 +13,7 @@ import { workload } from "../lib/slots.js";
 import { can } from "../middleware/auth.js";
 import { pickupOtpLimit, uploadLimit, writeLimit } from "../middleware/rateLimit.js";
 import { idParams, isoDate, minutes, objectId, phone10, text, validate } from "../middleware/validate.js";
+import { checkLeadSource, pickDropBody } from "./customer.js";
 import { BOOKING_STATUS, Booking, Coupon, Groomer, Invoice, Order, Package, Pet, Product, Service, StockLog, User } from "../models/index.js";
 
 const router = Router();
@@ -58,7 +60,7 @@ const ownedBooking = async (req) => {
   return b;
 };
 
-const walkin = z.strictObject({ customerId: objectId, petId: objectId, serviceIds: z.array(objectId).min(1).max(10), groomerId: objectId.nullish(), date: isoDate, start: minutes, notes: text(500).optional(), source: z.enum(["phone", "walkin"]) });
+const walkin = z.strictObject({ customerId: objectId, petId: objectId, serviceIds: z.array(objectId).min(1).max(10), groomerId: objectId.nullish(), date: isoDate, start: minutes, notes: text(500).optional(), source: z.enum(["phone", "walkin"]), pickDrop: pickDropBody.optional() });
 
 router.post("/bookings", can("bookings.manage"), writeLimit, validate({ body: walkin }), async (req, res) => {
   const { customerId, ...rest } = req.valid.body;
@@ -81,6 +83,20 @@ router.post("/bookings/:id/move", can("bookings.manage", "staff.assign"), writeL
   if (["picked_up", "cancelled", "no_show"].includes(booking.status)) throw conflict("This booking is closed.");
   await moveBooking(booking, req.valid.body);
   audit(req, "bookings", "move", `#${booking.bookingNo} moved / reassigned`, booking.id);
+  res.json({ booking: dto.panelBooking(booking) });
+});
+
+/** Retries a refund that failed, or checks Razorpay for a booking amount the browser never reported. */
+router.post("/bookings/:id/refund", can("bookings.manage"), writeLimit, validate({ params: idParams }), async (req, res) => {
+  const booking = await ownedBooking(req);
+  if (booking.advance?.status !== "refund_failed") throw conflict("There is no failed refund on this booking.");
+  await refundAdvance(booking, booking.cancelReason ?? "Booking cancelled");
+  audit(req, "bookings", "refund", `Refund retried for #${booking.bookingNo}: ${booking.advance.status}`, booking.id);
+  res.json({ booking: dto.panelBooking(await Booking.findById(booking._id)) });
+});
+
+router.post("/bookings/:id/payment/check", can("bookings.manage"), writeLimit, validate({ params: idParams }), async (req, res) => {
+  const booking = await reconcileAdvance(await ownedBooking(req));
   res.json({ booking: dto.panelBooking(booking) });
 });
 
@@ -231,7 +247,7 @@ router.post("/invoices/:id/cancel", can("billing.manage"), writeLimit, validate(
   res.json({ invoice: dto.panelInvoice(invoice) });
 });
 
-router.get("/invoices/:id/pdf", can("billing.manage"), validate({ params: idParams }), async (req, res) => {
+router.get("/invoices/:id/pdf", can("billing.manage", "gst.view"), validate({ params: idParams }), async (req, res) => {
   const invoice = await Invoice.findById(req.valid.params.id).lean();
   if (!invoice) throw notFound("Bill not found.");
   const pdf = await invoicePdf({ invoice, settings: await getSettings() });
@@ -240,10 +256,20 @@ router.get("/invoices/:id/pdf", can("billing.manage"), validate({ params: idPara
 
 /* ---------- Customers and pets ---------- */
 
-const customerBody = z.strictObject({ name: text(80).min(2), phone: phone10, email: z.union([z.email().max(120), z.literal("")]).optional(), notes: text(1000).optional(), blocked: z.boolean().optional(), noShowCount: z.literal(0).optional() });
+const customerBody = z.strictObject({
+  name: text(80).min(2),
+  phone: phone10,
+  email: z.union([z.email().max(120), z.literal("")]).optional(),
+  notes: text(1000).optional(),
+  blocked: z.boolean().optional(),
+  noShowCount: z.literal(0).optional(),
+  leadSource: text(40).optional(),
+  leadNote: text(120).optional(),
+});
 
 router.post("/customers", can("customers.manage", "bookings.manage", "billing.manage"), writeLimit, validate({ body: customerBody }), async (req, res) => {
   const { email, ...rest } = req.valid.body;
+  await checkLeadSource(rest.leadSource);
   if (await User.exists({ phone: rest.phone })) throw conflict("A customer with this number already exists.", "phone_taken");
   const user = await User.create({ ...rest, ...(email ? { email } : {}), role: "customer" });
   audit(req, "customers", "create", `Added customer ${user.name}`, user.id);
@@ -254,6 +280,7 @@ router.put("/customers/:id", can("customers.manage"), writeLimit, validate({ par
   const user = await User.findOne({ _id: req.valid.params.id, role: "customer" });
   if (!user) throw notFound("Customer not found.");
   const { email, ...rest } = req.valid.body;
+  await checkLeadSource(rest.leadSource);
   user.set(rest);
   if (email !== undefined) user.email = email || undefined;
   await user.save();
@@ -272,7 +299,7 @@ router.get("/customers/:id/history", can("customers.manage"), validate({ params:
   res.json({ bookings: bookings.map(dto.panelBooking), orders: orders.map(dto.panelOrder), invoices: invoices.map(dto.panelInvoice) });
 });
 
-const petBody = z.strictObject({ customerId: objectId, name: text(40).min(1), type: z.enum(["dog", "cat"]), breed: text(60).optional().default(""), size: z.enum(["small", "medium", "large"]), age: text(20).optional().default(""), vaccinated: z.boolean().optional(), notes: text(300).optional(), photo: text(200).optional() });
+const petBody = z.strictObject({ customerId: objectId, name: text(40).min(1), type: z.enum(["dog", "cat"]), breed: text(60).optional().default(""), size: z.enum(["small", "medium", "large"]), age: text(20).optional().default(""), gender: z.enum(["male", "female"]).optional(), weight: text(20).optional(), vaccinated: z.boolean().optional(), notes: text(300).optional(), photo: text(200).optional() });
 
 router.post("/pets", can("customers.manage", "bookings.manage"), writeLimit, validate({ body: petBody }), async (req, res) => {
   const { customerId, ...rest } = req.valid.body;

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { PERMISSIONS, ROLE_DEFAULTS } from "../config/permissions.js";
+import { PANEL_ROLES, PERMISSIONS, ROLE_DEFAULTS } from "../config/permissions.js";
 import { hashPassword } from "../lib/crypto.js";
 import * as dto from "../lib/dto.js";
 import { badRequest, conflict, notFound } from "../lib/errors.js";
@@ -17,7 +17,7 @@ const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /* ---------- Accounts, roles and permissions (super admin) ---------- */
 
-const PANEL_ROLE = z.enum(["staff", "admin", "clinic", "super_admin"]);
+const PANEL_ROLE = z.enum(PANEL_ROLES);
 const permList = z.array(z.enum(PERMISSIONS)).max(PERMISSIONS.length);
 
 router.get("/users", can("users.manage"), async (_req, res) => {

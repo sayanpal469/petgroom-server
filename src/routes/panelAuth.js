@@ -38,10 +38,10 @@ router.post("/login", loginIpLimit, loginLimit, validate({ body: z.strictObject(
     throw fail();
   }
   await User.updateOne({ _id: user._id }, { $set: { failedLogins: 0 }, $unset: { lockedUntil: 1 } });
-  await startSession(req, res, user, "panel");
+  const token = await startSession(req, res, user, "panel");
   req.user = user;
   audit(req, "auth", "login", `${user.name} signed in`, user._id);
-  res.json({ user: dto.panelUser(user) });
+  res.json({ user: dto.panelUser(user), ...(token ? { token } : {}) });
 });
 
 router.get("/me", requirePanel, (req, res) => res.json({ user: dto.panelUser(req.user) }));
@@ -58,9 +58,9 @@ router.post("/password", requirePanel, writeLimit, validate({ body: z.strictObje
   await user.save();
   // Any session left open on another device ends here.
   await endAllSessions(user._id);
-  await startSession(req, res, user, "panel");
+  const token = await startSession(req, res, user, "panel");
   audit(req, "auth", "password_change", `${user.name} changed their password`, user._id);
-  res.json({ ok: true });
+  res.json({ ok: true, ...(token ? { token } : {}) });
 });
 
 router.get("/notifications", requirePanel, async (req, res) => {

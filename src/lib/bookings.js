@@ -1,7 +1,9 @@
 import { withTxn } from "../config/db.js";
 import { Booking, Pet, Service, User } from "../models/index.js";
 import { randomDigits, safeEqual, seal, unseal } from "./crypto.js";
+import { advanceNeeded, refundAdvance } from "./advance.js";
 import { badRequest, conflict, notFound } from "./errors.js";
+import { tripPrice } from "./geo.js";
 import { addDaysISO, getSettings, nextSeq, notify, storeInstant, storeNow } from "./misc.js";
 import { groomerCanWork, pickGroomer, release, reserve, slotIsOpen } from "./slots.js";
 
@@ -48,12 +50,33 @@ async function priceBooking(pet, serviceIds) {
   };
 }
 
+/** Prices the trips the customer asked for. Locations come from the browser; prices never do. */
+function pricePickDrop(settings, pickDrop) {
+  if (!pickDrop || (!pickDrop.pickup && !pickDrop.drop)) return undefined;
+  if (!settings.pickDropEnabled) throw badRequest("Pick & drop isn't available right now.", "pickdrop_off");
+  const legs = {};
+  for (const leg of ["pickup", "drop"]) {
+    const loc = pickDrop[leg];
+    if (!loc) continue;
+    const price = tripPrice(settings, loc);
+    if (!price) throw badRequest("Pick & drop isn't available right now.", "pickdrop_off");
+    if (!price.inRange) throw badRequest(`That ${leg} address is ${price.km} km away. We pick up and drop within ${settings.pickDropMaxKm} km of the store.`, "pickdrop_far");
+    legs[leg] = { ...loc, km: price.km, charge: price.charge };
+  }
+  const charge = (legs.pickup?.charge ?? 0) + (legs.drop?.charge ?? 0);
+  return { ...legs, charge, stage: "requested", history: { requested: new Date() } };
+}
+
 /** Creates a booking and holds its slot. With "any available" it retries once if another customer takes the picked groomer first. */
-export async function createBooking({ userId, petId, serviceIds, groomerId, date, start, notes, source }) {
+export async function createBooking({ userId, petId, serviceIds, groomerId, date, start, notes, source, pickDrop }) {
   const settings = await getSettings();
   const pet = await Pet.findOne({ _id: petId, userId, active: true }).lean();
   if (!pet) throw notFound("Pet not found.");
   const { serviceNames, estimate, duration } = await priceBooking(pet, serviceIds);
+  const trips = pricePickDrop(settings, pickDrop);
+  // Bookings the store adds by phone or at the counter never ask for an online payment.
+  const advanceAmount = source === "online" ? await advanceNeeded(estimate + (trips?.charge ?? 0)) : 0;
+  const advance = advanceAmount ? { amount: advanceAmount, status: "due", dueBy: new Date(Date.now() + settings.advanceHoldMinutes * 60_000) } : undefined;
 
   const now = storeNow();
   if (date < now.date || (date === now.date && start <= now.minutes)) throw badRequest("Please choose a future time.");
@@ -67,16 +90,18 @@ export async function createBooking({ userId, petId, serviceIds, groomerId, date
     try {
       const booking = await withTxn(async (session) => {
         const seq = await nextSeq("booking", 1000, session);
-        const status = settings.autoConfirm ? "confirmed" : "pending";
+        // A booking waiting for its booking amount stays pending until the payment arrives.
+        const status = settings.autoConfirm && !advance ? "confirmed" : "pending";
         const history = { booked: new Date(), ...(status === "confirmed" ? { confirmed: new Date() } : {}) };
         const [doc] = await Booking.create(
-          [{ bookingNo: `PSK${seq}`, userId, petId, serviceIds, serviceNames, groomerId: assigned, date, start, duration, status, source, notes, estimate, history }],
+          [{ bookingNo: `PSK${seq}`, userId, petId, serviceIds, serviceNames, groomerId: assigned, date, start, duration, status, source, notes, estimate, history, advance, pickDrop: trips }],
           { session },
         );
         await reserve(doc, session);
         return doc;
       });
-      notify(userId, { kind: "booking", title: booking.status === "confirmed" ? "Booking confirmed" : "Booking received", message: `${pet.name}'s grooming #${booking.bookingNo} on ${date}.`, href: `/account/bookings/${booking.id}` });
+      if (advance) notify(userId, { kind: "booking", title: "Pay the booking amount", message: `Pay ₹${advance.amount} within ${settings.advanceHoldMinutes} minutes to keep ${pet.name}'s slot on ${date}.`, href: `/account/bookings/${booking.id}` });
+      else notify(userId, { kind: "booking", title: booking.status === "confirmed" ? "Booking confirmed" : "Booking received", message: `${pet.name}'s grooming #${booking.bookingNo} on ${date}.`, href: `/account/bookings/${booking.id}` });
       await notifyStaff(assigned, { title: "New appointment", message: `${pet.name} · #${booking.bookingNo} on ${date}.` });
       return booking;
     } catch (e) {
@@ -100,14 +125,30 @@ export async function setStatus(booking, next, { reason, actor } = {}) {
     if (next === "cancelled" || next === "no_show") await release(booking, session);
     booking.status = next;
     booking.history.set(next, new Date());
-    if (next === "cancelled") booking.cancelReason = reason;
+    if (next === "cancelled") {
+      booking.cancelReason = reason;
+      if (booking.advance?.status === "due") booking.advance.status = "expired";
+      if (booking.pickDrop?.stage && !["delivered", "cancelled"].includes(booking.pickDrop.stage)) {
+        booking.pickDrop.stage = "cancelled";
+        booking.pickDrop.history.set("cancelled", new Date());
+      }
+    }
     if (next === "ready_for_pickup") generatePickup(booking);
     await booking.save({ session });
     if (next === "no_show") await User.updateOne({ _id: booking.userId }, { $inc: { noShowCount: 1 } }, { session });
   });
 
-  const title = next === "ready_for_pickup" ? "Your pet is ready for pickup" : `Booking ${LABEL[next]}`;
-  const message = next === "ready_for_pickup" ? `Open booking #${booking.bookingNo} and show the pickup OTP at the store.` : `Booking #${booking.bookingNo} is now ${LABEL[next]}.`;
+  // A cancelled booking returns the booking amount. A no-show keeps it.
+  if (next === "cancelled" && booking.advance?.status === "paid") await refundAdvance(booking, reason);
+
+  const homeDrop = Boolean(booking.pickDrop?.drop) && booking.pickDrop.stage !== "cancelled";
+  const title = next === "ready_for_pickup" ? (homeDrop ? "Your pet is ready to come home" : "Your pet is ready for pickup") : `Booking ${LABEL[next]}`;
+  const message =
+    next === "ready_for_pickup"
+      ? homeDrop
+        ? `Our team will bring them home. Share the OTP on booking #${booking.bookingNo} only when your pet is handed over.`
+        : `Open booking #${booking.bookingNo} and show the pickup OTP at the store.`
+      : `Booking #${booking.bookingNo} is now ${LABEL[next]}.`;
   notify(booking.userId, { kind: "booking", title, message, href: `/account/bookings/${booking.id}` });
   if (next === "cancelled" || previous === "pending") await notifyStaff(booking.groomerId, { title: `Appointment ${LABEL[next]}`, message: `#${booking.bookingNo} on ${booking.date}.${actor ? ` Updated by ${actor}.` : ""}` });
   return booking;
@@ -175,6 +216,11 @@ export async function verifyPickup(id, code, actor) {
   booking.pickup.verifiedAt = new Date();
   booking.pickup.verifiedBy = actor._id;
   booking.pickup.verifiedByName = actor.name;
+  // Handed over at home by the pick & drop staff.
+  if (booking.pickDrop?.stage === "out_for_drop") {
+    booking.pickDrop.stage = "delivered";
+    booking.pickDrop.history.set("delivered", new Date());
+  }
   await booking.save();
   notify(booking.userId, { kind: "booking", title: "Pet picked up", message: `Thanks for visiting! Booking #${booking.bookingNo} is complete.`, href: `/account/bookings/${booking.id}` });
   return booking;

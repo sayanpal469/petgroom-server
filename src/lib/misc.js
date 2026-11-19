@@ -50,6 +50,31 @@ export const DEFAULT_SETTINGS = {
   freeDeliveryAbove: 999,
   codLimit: 5000,
   invoicePrefix: "PSB",
+  // Shop location: the centre for staff attendance and for pick & drop distances.
+  shopLat: null,
+  shopLng: null,
+  attendanceRadius: 100,
+  attendanceGraceMinutes: 15,
+  // Booking amount taken online when a customer books. Needs the payment gateway switched on.
+  advanceEnabled: false,
+  advanceType: "flat",
+  advanceValue: 200,
+  advanceHoldMinutes: 20,
+  // Pick & drop: charge per trip (pickup or drop) = base + perKm for every km beyond freeKm.
+  pickDropEnabled: false,
+  pickDropBase: 99,
+  pickDropPerKm: 15,
+  pickDropFreeKm: 3,
+  pickDropMaxKm: 15,
+  pickDropGst: 18,
+  leadSources: [
+    { id: "phone_call", label: "Phone call" },
+    { id: "google_business", label: "Google My Business" },
+    { id: "social_media", label: "Social media (Facebook / Instagram)" },
+    { id: "youtube", label: "YouTube" },
+    { id: "reference", label: "Reference" },
+    { id: "other", label: "Others" },
+  ],
   templates: {
     bookingConfirmed: "Hi {name}, {pet}'s grooming is confirmed for {date} at {time}. Pay at the store after the service. – Paws Station",
     reminder: "Reminder: {pet}'s grooming is tomorrow at {time}. See you soon! – Paws Station",
