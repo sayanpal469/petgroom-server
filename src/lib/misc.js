@@ -1,6 +1,7 @@
 import { env } from "../config/env.js";
 import { Counter, AuditLog, Notification, Settings } from "../models/index.js";
 import { logger } from "./logger.js";
+import { pushToUser } from "./push.js";
 
 /* ---------- Store time. The shop runs on India time whatever the server's zone is. ---------- */
 
@@ -126,4 +127,5 @@ export function audit(req, module, action, summary, targetId) {
 export function notify(userId, n) {
   if (!userId) return;
   Notification.create({ userId, ...n }).catch((err) => logger.error({ err }, "notification write failed"));
+  pushToUser(userId, n);
 }

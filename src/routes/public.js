@@ -5,6 +5,7 @@ import * as dto from "../lib/dto.js";
 import { conflict } from "../lib/errors.js";
 import { getSettings } from "../lib/misc.js";
 import { getPayConfig, payReady } from "../lib/payments.js";
+import { getPushConfig, pushReady } from "../lib/push.js";
 import { slotsFor } from "../lib/slots.js";
 import { enquiryLimit } from "../middleware/rateLimit.js";
 import { isoDate, objectId, phone10, text, validate } from "../middleware/validate.js";
@@ -23,9 +24,10 @@ export const clearPublicCache = () => {
 
 router.get("/bootstrap", async (_req, res) => {
   if (!cache || Date.now() - cachedAt > CACHE_MS) {
-    const [settings, pay, services, packages, groomers, products, content] = await Promise.all([
+    const [settings, pay, push, services, packages, groomers, products, content] = await Promise.all([
       getSettings(),
       getPayConfig(),
+      getPushConfig(),
       Service.find({ active: true }).sort({ order: 1 }).lean(),
       Package.find().sort({ price: 1 }).lean(),
       Groomer.find({ active: true }).lean(),
@@ -34,7 +36,7 @@ router.get("/bootstrap", async (_req, res) => {
     ]);
     const of = (kind) => content.filter((c) => c.kind === kind).map((c) => ({ id: String(c._id), ...c.data }));
     cache = {
-      store: dto.publicStore(settings, { paymentsReady: payReady(pay) }),
+      store: dto.publicStore(settings, { paymentsReady: payReady(pay), pushAppId: pushReady(push) ? push.appId : null }),
       services: services.map(dto.service),
       packages: packages.map(dto.pkg),
       groomers: groomers.map(dto.groomer),

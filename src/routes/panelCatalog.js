@@ -6,11 +6,12 @@ import { badRequest, conflict, notFound } from "../lib/errors.js";
 import { decodeImage, storePublicImage } from "../lib/media.js";
 import { audit, nextSeq, saveSettings } from "../lib/misc.js";
 import { getPayConfig, payReady, payView, savePayConfig, testKeys } from "../lib/payments.js";
+import { getPushConfig, pushView, savePushConfig, sendPush, testPushKeys } from "../lib/push.js";
 import { getSmsConfig, hasSecret, providerReady, saveSmsConfig, smsView, testConnection } from "../lib/sms.js";
 import { can } from "../middleware/auth.js";
 import { uploadLimit, writeLimit } from "../middleware/rateLimit.js";
-import { idParams, isoDate, minutes, text, validate } from "../middleware/validate.js";
-import { Coupon, Groomer, Package, Product, Service, SlotBlock, StockLog } from "../models/index.js";
+import { idParams, isoDate, minutes, phone10, text, validate } from "../middleware/validate.js";
+import { Coupon, Groomer, Package, Product, Service, SlotBlock, StockLog, User } from "../models/index.js";
 import { clearPublicCache } from "./public.js";
 
 const router = Router();
@@ -366,6 +367,45 @@ router.post("/sms/test", can("settings.manage"), writeLimit, async (_req, res) =
     throw badRequest("Message Central refused these details. Check the Customer ID and password or auth token.");
   });
   res.json({ ok: true });
+});
+
+/* ---------- Push notifications (OneSignal). The App API key goes in but never comes back out. ---------- */
+
+router.get("/push", can("settings.manage"), async (_req, res) => {
+  res.json({ push: pushView(await getPushConfig()) });
+});
+
+const pushBody = z.strictObject({
+  enabled: z.boolean(),
+  appId: z.string().trim().toLowerCase().regex(/^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?$/, "The App ID looks like 8-4-4-4-12 letters and digits"),
+  apiKey: z.string().trim().min(20).max(200).optional(),
+});
+
+router.put("/push", can("settings.manage"), writeLimit, validate({ body: pushBody }), async (req, res) => {
+  const next = await savePushConfig(req.valid.body);
+  clearPublicCache();
+  if (req.valid.body.enabled && !(next.appId && next.keySealed)) throw badRequest("Saved, but push stays off until the App ID and App API key are set.");
+  audit(req, "settings", "push", `Push notifications ${req.valid.body.enabled ? "on" : "off"}`);
+  res.json({ push: pushView(next) });
+});
+
+const pushTestBody = z.strictObject({ phone: phone10.optional() });
+
+router.post("/push/test", can("settings.manage"), writeLimit, validate({ body: pushTestBody }), async (req, res) => {
+  const push = await getPushConfig();
+  if (!push.appId || !push.keySealed) throw badRequest("Save the App ID and App API key first.");
+  await testPushKeys(push).catch(() => {
+    throw badRequest("OneSignal refused these details. Check the App ID and App API key.");
+  });
+  const { phone } = req.valid.body;
+  if (!phone) return res.json({ ok: true });
+  const user = await User.findOne({ phone, role: "customer" }).select("_id name").lean();
+  if (!user) throw notFound("No customer with this mobile number.");
+  const out = await sendPush(push, [user._id], { title: "Test from Paws Station", message: `Hi ${user.name ?? "there"}, push notifications are working.`, data: { kind: "offer", href: "/account/notifications" } }).catch(() => {
+    throw badRequest("OneSignal didn't accept the test message.");
+  });
+  if (!out?.id) throw badRequest("This customer hasn't opened the app with notifications allowed yet.");
+  res.json({ ok: true, sent: true });
 });
 
 export default router;

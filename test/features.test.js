@@ -327,3 +327,41 @@ test("app login: token instead of cookie, works only inside the tunnel, ends on 
   await app.post("/auth/logout");
   assert.equal((await app.get("/me/bootstrap")).status, 401);
 });
+
+/* ---------- Push notifications (OneSignal) ---------- */
+
+test("push: every notification goes to the user's phones by external id, and the key never comes back", async () => {
+  const { setPushTransport } = await import("../src/lib/push.js");
+  const sent = [];
+  setPushTransport(async (url, init) => {
+    if (init.method === "GET") return { status: init.headers.authorization === `Key ${"k".repeat(40)}` ? 200 : 403, body: {} };
+    sent.push({ url, auth: init.headers.authorization, body: JSON.parse(init.body) });
+    return { status: 200, body: { id: "n1" } };
+  });
+  const APP = "3f2a9c1e-1234-4abc-9def-0123456789ab";
+  const sup = await loginPanel("super@t.in");
+  assert.equal((await sup.put("/panel/push", { enabled: true, appId: "not-an-id" })).status, 400);
+  const saved = await sup.put("/panel/push", { enabled: true, appId: APP, apiKey: "k".repeat(40) });
+  assert.equal(saved.status, 200);
+  assert.deepEqual(saved.body.push, { enabled: true, appId: APP, hasKey: true });
+  assert.ok(!JSON.stringify((await sup.get("/panel/push")).body).includes("kkkk"));
+  assert.equal((await new Client().get("/public/bootstrap")).body.store.pushAppId, APP);
+
+  assert.equal((await sup.post("/panel/push/test", {})).status, 200);
+  assert.equal((await sup.post("/panel/push/test", { phone: "9876543210" })).body.sent, true);
+  assert.equal((await sup.post("/panel/push/test", { phone: "9000000000" })).status, 404);
+
+  const riya = await loginCustomer("9876543210");
+  sent.length = 0;
+  assert.equal((await riya.post("/me/bookings", bookBody())).status, 201);
+  const mine = () => sent.filter((x) => x.body.include_aliases.external_id[0] === String(f.riya._id));
+  for (let i = 0; i < 50 && !mine().length; i++) await new Promise((r) => setTimeout(r, 20));
+  assert.equal(mine().length, 1);
+  assert.equal(mine()[0].auth, `Key ${"k".repeat(40)}`);
+  assert.equal(mine()[0].body.app_id, APP);
+  assert.equal(mine()[0].body.include_aliases.external_id.length, 1);
+  assert.match(mine()[0].body.data.href, /^\/account\/bookings\//);
+
+  await sup.put("/panel/push", { enabled: false, appId: APP });
+  assert.equal((await new Client().get("/public/bootstrap")).body.store.pushAppId, null);
+});

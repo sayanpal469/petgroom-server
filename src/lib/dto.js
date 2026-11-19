@@ -122,7 +122,8 @@ export const attendance = (a) => ({ id: id(a._id), userId: id(a.userId), name: a
 export const auditRow = (a) => ({ id: id(a._id), actorName: a.actorName ?? "System", actorRole: a.actorRole ?? "", action: a.action, module: a.module, summary: a.summary, ip: a.ip, at: iso(a.at) });
 
 /** Storefront-safe settings: no invoice prefix, templates or delivery rules beyond what checkout needs. */
-export const publicStore = (s, { paymentsReady = false } = {}) => ({
+export const publicStore = (s, { paymentsReady = false, pushAppId = null } = {}) => ({
+  pushAppId,
   advance: s.advanceEnabled && paymentsReady ? { type: s.advanceType, value: s.advanceValue, holdMinutes: s.advanceHoldMinutes } : null,
   pickDrop:
     s.pickDropEnabled && Number.isFinite(s.shopLat) && Number.isFinite(s.shopLng)
